@@ -193,6 +193,10 @@ def _register_adapter():
                             # LLM 自动回复
                             if event_type == EVENT_CHAT and self._should_llm_reply():
                                 await self._try_llm_reply(item)
+                    else:
+                        # 非聊天事件也需要去重
+                        if self._is_duplicate(item):
+                            continue
                     # 所有事件都尝试推送到群（包括聊天）
                     await self._push_event_to_group(item)
                     if event_type not in (EVENT_CHAT, EVENT_WHISPER):
@@ -454,19 +458,49 @@ def _register_adapter():
             return True
 
         def _is_duplicate(self, item: dict) -> bool:
-            """防循环去重：同一 server_id + sender + message + 时间窗内丢弃。"""
+            """消息去重：同一事件类型 + 关键内容 + 时间窗内丢弃。"""
             if not self._dedup_window:
                 return False
+            
+            event_type = item.get("event_type")
             server_id = item.get("server_id")
             payload = item.get("data", {})
-            key = f"{server_id}|{payload.get('sender')}|{payload.get('message')}"
             now = asyncio.get_running_loop().time()
+            
+            # 根据事件类型生成去重 key
+            if event_type == "chat":
+                # 聊天: server_id + sender + message
+                key = f"chat|{server_id}|{payload.get('sender')}|{payload.get('message')}"
+            elif event_type == "whisper":
+                # 私聊: server_id + sender + receiver + message
+                key = f"whisper|{server_id}|{payload.get('sender')}|{payload.get('receiver')}|{payload.get('message')}"
+            elif event_type == "player_join":
+                # 加入: server_id + player
+                key = f"player_join|{server_id}|{payload.get('player')}"
+            elif event_type == "player_leave":
+                # 离开: server_id + player
+                key = f"player_leave|{server_id}|{payload.get('player')}"
+            elif event_type == "death":
+                # 死亡: server_id + death (固定 key，同一服务器短时间内只记录一次)
+                key = f"death|{server_id}"
+            elif event_type == "achievement":
+                # 成就: server_id + player + achievement
+                key = f"achievement|{server_id}|{payload.get('player')}|{payload.get('achievement')}"
+            elif event_type == "system":
+                # 系统消息: server_id + message
+                key = f"system|{server_id}|{payload.get('message')}"
+            else:
+                # 其他事件不去重
+                return False
+            
             last = self._dedup_cache.get(key)
             if last and (now - last) < self._dedup_window:
+                logger.debug(f"[{server_id}] 重复事件已过滤: {event_type}")
                 return True
             self._dedup_cache[key] = now
-            # 简单清理：超过 200 条清一次
-            if len(self._dedup_cache) > 200:
+            
+            # 简单清理：超过 500 条清一次
+            if len(self._dedup_cache) > 500:
                 self._dedup_cache.clear()
             return False
 
