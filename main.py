@@ -235,6 +235,9 @@ class MinecraftBridgePlugin(Star):
     async def terminate(self):
         """插件卸载/停用时清理。"""
         await self.bridge.stop()
+        # 清理运行时状态，避免重载时端口冲突
+        from .bridge import runtime_state
+        runtime_state.set_bridge_manager(None)
         logger.info("Minecraft Bridge 插件已卸载")
 
     # ==================== LLM 请求拦截 ====================
