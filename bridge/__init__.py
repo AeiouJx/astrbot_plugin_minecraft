@@ -88,7 +88,20 @@ class BridgeManager:
         return await self.registry.send_task(server_id, action, params, timeout or self.rpc_timeout)
 
     async def send_chat(self, server_id: str, message: str) -> None:
-        """bot 发送公共聊天（fire-and-forget）。"""
+        """bot 发送公共聊天（fire-and-forget），带频率限制。"""
+        # 检查频率限制
+        rate_limit = int(self.config.get("chat_rate_limit", 0))
+        if rate_limit > 0:
+            import time
+            now = time.time()
+            window = int(self.config.get("chat_rate_window", 60))
+            if not hasattr(self, '_chat_timestamps'):
+                self._chat_timestamps = []
+            # 清理过期记录
+            self._chat_timestamps = [t for t in self._chat_timestamps if now - t < window]
+            if len(self._chat_timestamps) >= rate_limit:
+                raise RuntimeError(f"发言频率限制: {window}秒内最多{rate_limit}条消息")
+            self._chat_timestamps.append(now)
         await self.registry.send_task_fire(server_id, "send_chat", {"message": message})
 
     @property
