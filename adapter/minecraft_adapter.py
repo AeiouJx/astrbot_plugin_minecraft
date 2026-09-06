@@ -277,10 +277,23 @@ def _register_adapter():
                         # 构造消息链
                         chain = MessageChain([Plain(text=msg)])
                         # 构造 unified_msg_origin 格式
-                        # 格式: {platform_adapter_name}:group:{group_id}
-                        umo = f"aiocqhttp:group:{event_group}"
-                        await context.send_message(umo, chain)
-                        logger.info(f"[{server_id}] 事件推送到群 {event_group}: {msg}")
+                        # 尝试多种格式
+                        umo_formats = [
+                            f"aiocqhttp:group:{event_group}",
+                            f"qqoffical:group:{event_group}",
+                            f"onebot:group:{event_group}",
+                        ]
+                        sent = False
+                        for umo in umo_formats:
+                            try:
+                                await context.send_message(umo, chain)
+                                logger.info(f"[{server_id}] 事件推送到群 {event_group} (UMOP: {umo}): {msg}")
+                                sent = True
+                                break
+                            except Exception as e:
+                                logger.debug(f"[{server_id}] UMOP {umo} 失败: {e}")
+                        if not sent:
+                            logger.error(f"[{server_id}] 所有 UMOP 格式都失败，无法推送消息")
                     else:
                         logger.warning(f"[{server_id}] context 为空，无法推送事件")
                 except Exception as e:
