@@ -272,8 +272,10 @@ def _register_adapter():
                         from astrbot.core.platform.astr_message_event import MessageChain
                         # 构造消息链
                         chain = MessageChain([Plain(text=msg)])
-                        # 发送到指定群聊（event_group 是 unified_msg_origin 格式）
-                        await context.send_message(event_group, chain)
+                        # 构造 unified_msg_origin 格式
+                        # 格式: {platform_adapter_name}:group:{group_id}
+                        umo = f"aiocqhttp:group:{event_group}"
+                        await context.send_message(umo, chain)
                         logger.info(f"[{server_id}] 事件推送到群 {event_group}: {msg}")
                     else:
                         logger.warning(f"[{server_id}] context 为空，无法推送事件")
