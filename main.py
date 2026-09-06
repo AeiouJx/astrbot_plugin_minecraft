@@ -35,8 +35,9 @@ class MinecraftBridgePlugin(Star):
         self.config = config or {}
         self.bridge = BridgeManager.configure(dict(self.config))
 
-        # 导入平台适配器模块以触发注册
-        from .adapter.minecraft_adapter import MinecraftPlatformAdapter  # noqa: F401
+        # 导入平台适配器模块以触发注册（仅首次）
+        from .adapter import _ensure_registered
+        _ensure_registered()
 
         # 是否开启 WS 服务（启动时再 start）
         self._bridge_on = bool(self.config.get("bridge_on", False))
