@@ -142,6 +142,24 @@ class WSServer:
                             break
                     else:
                         conn.touch()
+                        # 处理 update_info 消息（更新 server_id 等信息）
+                        if msg_type == protocol.MSG_UPDATE_INFO:
+                            new_server_id = data.get("server_id")
+                            if new_server_id and new_server_id != conn.server_id:
+                                old_id = conn.server_id
+                                # 更新连接信息
+                                await self.registry.unregister(old_id, "server_id updated")
+                                conn.server_id = new_server_id
+                                conn.apply_hello(data)
+                                await self.registry.register(conn)
+                                logger.info(f"[{old_id}] server_id 更新为: {new_server_id}")
+                                # 发送确认
+                                await ws.send_json({
+                                    "type": protocol.MSG_UPDATE_INFO_ACK,
+                                    "server_id": new_server_id,
+                                    "timestamp": protocol.now(),
+                                })
+                            continue
                         self.registry.handle_data_message(conn.server_id, data)
                         if msg_type == protocol.MSG_HEARTBEAT:
                             await conn.send_heartbeat_ack()

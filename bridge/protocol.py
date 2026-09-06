@@ -22,6 +22,8 @@ MSG_TASK_RESULT = "task_result"
 MSG_QUERY_RESULT = "query_result"
 MSG_HELLO = "hello"
 MSG_HELLO_ACK = "hello_ack"
+MSG_UPDATE_INFO = "update_info"
+MSG_UPDATE_INFO_ACK = "update_info_ack"
 
 # ---- 事件类型（游戏侧 G->S）----
 EVENT_CHAT = "chat"
