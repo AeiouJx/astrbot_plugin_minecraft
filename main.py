@@ -304,10 +304,12 @@ class MinecraftBridgePlugin(Star):
           /mcbridge off    停止 WS 服务
           /mcbridge list   列出已连接的服务器实例
         """
-        group_id = event.group_id if hasattr(event, 'group_id') else None
-        logger.debug(f"[mcbridge] group_id={group_id!r}, type={type(group_id).__name__}")
-        if group_id and not self._is_group_allowed(group_id):
-            logger.debug(f"[mcbridge] group {group_id} not allowed")
+        group_id = getattr(event, 'group_id', None)
+        sender_id = getattr(event, 'sender_id', None)
+        logger.info(f"[mcbridge] 收到命令: group_id={group_id!r}, sender_id={sender_id!r}")
+        
+        if group_id is not None and not self._is_group_allowed(str(group_id)):
+            logger.info(f"[mcbridge] 群 {group_id} 不在白名单中，拒绝执行")
             return
 
         args = event.message_str.strip().split()
@@ -345,10 +347,12 @@ class MinecraftBridgePlugin(Star):
 
         用法: /mc <消息内容> 或 /mc <server_id> <消息内容>
         """
-        group_id = event.group_id if hasattr(event, 'group_id') else None
-        logger.debug(f"[mc] group_id={group_id!r}, type={type(group_id).__name__}")
-        if group_id and not self._is_group_allowed(group_id):
-            logger.debug(f"[mc] group {group_id} not allowed")
+        group_id = getattr(event, 'group_id', None)
+        sender_id = getattr(event, 'sender_id', None)
+        logger.info(f"[mc] 收到命令: group_id={group_id!r}, sender_id={sender_id!r}, message={event.message_str[:50]!r}")
+        
+        if group_id is not None and not self._is_group_allowed(str(group_id)):
+            logger.info(f"[mc] 群 {group_id} 不在白名单中，拒绝执行")
             return
 
         parts = event.message_str.strip().split(" ", 1)
