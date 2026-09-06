@@ -52,6 +52,7 @@ class BridgeManager:
     def configure(cls, config: dict) -> "BridgeManager":
         """应用配置并返回单例。"""
         config = config or {}
+        logger.info(f"BridgeManager.configure: ws_host={config.get('ws_host')!r}, ws_port={config.get('ws_port')!r}")
         inst = cls.get_instance()
         inst.config = config
         inst.rpc_timeout = float(config.get("rpc_timeout", 10))

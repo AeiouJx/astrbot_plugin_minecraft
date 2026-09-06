@@ -41,6 +41,7 @@ class WSServer:
         self.path = config.get("ws_path", "/ws")
         self.shared_token = config.get("shared_token", "change-me")
         self.heartbeat_timeout = float(config.get("heartbeat_timeout", 15))
+        logger.info(f"WS 配置已应用: host={self.host!r}, port={self.port}, path={self.path!r}")
 
     # ---- 生命周期 ----
 
@@ -82,6 +83,7 @@ class WSServer:
             site = web.TCPSite(self._runner, self.host, self.port)
             await site.start()
             logger.info(f"WS 服务已监听: ws://{self.host}:{self.port}{self.path}")
+            logger.info(f"WS 绑定地址: host={self.host!r}, port={self.port}")
         except Exception as e:  # noqa: BLE001
             logger.error(f"WS 服务启动失败: {e}")
             self._runner = None

@@ -52,6 +52,7 @@ class MinecraftBridgePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig = None):
         super().__init__(context)
         self.config = config or {}
+        logger.info(f"MinecraftBridgePlugin.__init__: config keys={list(self.config.keys())}, ws_host={self.config.get('ws_host')!r}")
         self.bridge = BridgeManager.configure(dict(self.config))
 
         # 导入平台适配器模块以触发注册（仅首次）
