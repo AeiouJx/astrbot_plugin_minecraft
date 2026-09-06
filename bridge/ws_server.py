@@ -111,15 +111,24 @@ class WSServer:
                     msg_type = data.get("type")
                     if conn is None:
                         if msg_type == protocol.MSG_HELLO:
+                            # 新协议：hello 握手
                             server_id = data.get("server_id") or "default"
                             conn = BridgeConnection(server_id, ws, self.registry.pending, self.heartbeat_timeout)
                             conn.apply_hello(data)
                             await self.registry.register(conn)
                             conn.touch()
                             await conn.send_hello_ack()
-                            logger.info(f"[{server_id}] 握手完成 (mod={conn.mod_version}, caps={conn.capabilities})")
+                            logger.info(f"[{server_id}] hello 握手完成 (mod={conn.mod_version}, caps={conn.capabilities})")
+                        elif msg_type == protocol.MSG_HEARTBEAT:
+                            # 兼容旧协议：heartbeat 作为首条消息
+                            server_id = data.get("server_id") or "default"
+                            conn = BridgeConnection(server_id, ws, self.registry.pending, self.heartbeat_timeout)
+                            await self.registry.register(conn)
+                            conn.touch()
+                            await conn.send_heartbeat_ack()
+                            logger.info(f"[{server_id}] heartbeat 握手完成（兼容模式）")
                         else:
-                            logger.warning("连接未初始化（无 hello）即发送数据")
+                            logger.warning("连接未初始化（无 hello/heartbeat）即发送数据")
                             break
                     else:
                         conn.touch()
