@@ -76,6 +76,16 @@ CONFIG_METADATA = {
         "hint": "插件加载时自动启动 WebSocket 服务（运行中可用 Dashboard 按钮临时启停）",
         "type": "bool",
     },
+    "allowed_groups": {
+        "description": "允许使用的群号列表",
+        "hint": "留空表示所有群都可用；填写后仅这些群可使用 Minecraft Bridge 命令",
+        "type": "list",
+    },
+    "blocked_groups": {
+        "description": "禁止使用的群号列表",
+        "hint": "这些群无法使用 Minecraft Bridge 命令（优先级高于白名单）",
+        "type": "list",
+    },
 }
 
 

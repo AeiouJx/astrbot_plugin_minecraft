@@ -272,6 +272,16 @@ class MinecraftBridgePlugin(Star):
 
     # ==================== 命令 ====================
 
+    def _is_group_allowed(self, group_id: str) -> bool:
+        """检查群聊是否允许使用 Minecraft Bridge。"""
+        blocked = self.config.get("blocked_groups", [])
+        if blocked and group_id in blocked:
+            return False
+        allowed = self.config.get("allowed_groups", [])
+        if not allowed:
+            return True
+        return group_id in allowed
+
     @filter.command("mcbridge")
     async def bridge_command(self, event: AstrMessageEvent):
         """Minecraft Bridge 控制命令。
@@ -282,6 +292,10 @@ class MinecraftBridgePlugin(Star):
           /mcbridge off    停止 WS 服务
           /mcbridge list   列出已连接的服务器实例
         """
+        group_id = event.group_id if hasattr(event, 'group_id') else None
+        if group_id and not self._is_group_allowed(group_id):
+            return
+
         args = event.message_str.strip().split()
         op = args[1] if len(args) > 1 else "status"
 
@@ -317,6 +331,10 @@ class MinecraftBridgePlugin(Star):
 
         用法: /mc <消息内容> 或 /mc <server_id> <消息内容>
         """
+        group_id = event.group_id if hasattr(event, 'group_id') else None
+        if group_id and not self._is_group_allowed(group_id):
+            return
+
         parts = event.message_str.strip().split(" ", 1)
         if len(parts) < 2 or not parts[1].strip():
             yield event.plain_result("用法: /mc <消息内容>，或 /mc <server_id> <消息内容>")
