@@ -205,22 +205,28 @@ def _register_adapter():
         async def _push_event_to_group(self, item: dict) -> None:
             """推送游戏事件到配置的群聊。"""
             event_type = item.get("event_type")
+            server_id = item.get("server_id", "default")
+            
+            logger.debug(f"[{server_id}] _push_event_to_group: event_type={event_type}")
             
             # 检查是否启用推送
             if event_type in ("chat", "whisper"):
                 if not self.bridge.config.get("chat_push_enabled", False):
+                    logger.debug(f"[{server_id}] chat_push_enabled=False, 跳过")
                     return
             else:
                 if not self.bridge.config.get("server_event_push_enabled", False):
+                    logger.debug(f"[{server_id}] server_event_push_enabled=False, 跳过")
                     return
 
             event_group = self.bridge.config.get("minecraft_event_group", "")
             if not event_group:
+                logger.debug(f"[{server_id}] minecraft_event_group 为空, 跳过")
                 return
 
             # 检查目标群是否在白名单中
             if not self._is_event_group_allowed():
-                logger.debug(f"事件推送目标群 {event_group} 不在白名单中，跳过推送")
+                logger.debug(f"[{server_id}] 事件推送目标群 {event_group} 不在白名单中，跳过推送")
                 return
 
             event_type = item.get("event_type")
@@ -268,9 +274,13 @@ def _register_adapter():
                         chain = MessageChain([Plain(text=msg)])
                         # 发送到指定群聊（event_group 是 unified_msg_origin 格式）
                         await context.send_message(event_group, chain)
-                        logger.info(f"事件推送到群 {event_group}: {msg}")
+                        logger.info(f"[{server_id}] 事件推送到群 {event_group}: {msg}")
+                    else:
+                        logger.warning(f"[{server_id}] context 为空，无法推送事件")
                 except Exception as e:
-                    logger.error(f"事件推送失败: {e}")
+                    logger.error(f"[{server_id}] 事件推送失败: {e}")
+            else:
+                logger.debug(f"[{server_id}] event_type={event_type} 没有生成消息内容")
 
         def _should_llm_reply(self) -> bool:
             """根据权重判断是否触发 LLM 回复。"""
