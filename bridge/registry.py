@@ -161,6 +161,10 @@ class Registry:
                 data=data.get("data"),
                 error_message=data.get("error_message"),
             )
+        elif msg_type in (protocol.MSG_HEARTBEAT, protocol.MSG_HEARTBEAT_ACK, 
+                          protocol.MSG_HELLO, protocol.MSG_HELLO_ACK,
+                          protocol.MSG_UPDATE_INFO, protocol.MSG_UPDATE_INFO_ACK):
+            pass  # 这些消息由 ws_server 处理，不需要在这里记录
         else:
             logger.debug(f"[{server_id}] 未知消息类型: {msg_type}")
 
