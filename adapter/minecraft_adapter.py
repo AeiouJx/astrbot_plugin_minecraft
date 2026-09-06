@@ -211,6 +211,11 @@ def _register_adapter():
             if not event_group:
                 return
 
+            # 检查目标群是否在白名单中
+            if not self._is_event_group_allowed():
+                logger.debug(f"事件推送目标群 {event_group} 不在白名单中，跳过推送")
+                return
+
             event_type = item.get("event_type")
             server_id = item.get("server_id", "default")
             payload = item.get("data", {})
@@ -397,6 +402,13 @@ def _register_adapter():
             if allowed_groups and group_id not in allowed_groups:
                 return True
             return False
+
+        def _is_event_group_allowed(self) -> bool:
+            """检查事件推送目标群是否在白名单中。"""
+            event_group = self.bridge.config.get("minecraft_event_group", "")
+            if not event_group:
+                return False  # 未配置则不推送
+            return not self._is_group_blocked(event_group)
 
         def _guard(self, user_id: str, group_id: str = None) -> bool:
             """权限守卫：检查用户和群是否被允许。返回 True 表示允许。"""

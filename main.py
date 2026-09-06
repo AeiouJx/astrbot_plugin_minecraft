@@ -279,15 +279,20 @@ class MinecraftBridgePlugin(Star):
     def _is_group_allowed(self, group_id: str) -> bool:
         """检查群聊是否允许使用 Minecraft Bridge。"""
         if not group_id:
+            logger.debug("[_is_group_allowed] group_id 为空，允许")
             return True
         group_id_str = str(group_id)
         blocked = [str(g) for g in self.config.get("blocked_groups", [])]
         if blocked and group_id_str in blocked:
+            logger.debug(f"[_is_group_allowed] 群 {group_id_str} 在黑名单中，拒绝")
             return False
         allowed = [str(g) for g in self.config.get("allowed_groups", [])]
         if not allowed:
+            logger.debug("[_is_group_allowed] 白名单为空，允许所有群")
             return True
-        return group_id_str in allowed
+        result = group_id_str in allowed
+        logger.debug(f"[_is_group_allowed] 群 {group_id_str} 白名单检查: {result}, 白名单={allowed}")
+        return result
 
     @filter.command("mcbridge")
     async def bridge_command(self, event: AstrMessageEvent):
