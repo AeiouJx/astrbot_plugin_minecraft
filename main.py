@@ -98,9 +98,9 @@ class MinecraftBridgePlugin(Star):
 
     async def _api_status(self):
         """GET /astrbot_plugin_minecraft_bridge/status - 获取桥接状态。"""
-        from quart import jsonify
+        from astrbot.api.web import json_response
         try:
-            return jsonify({
+            return json_response({
                 "status": "ok",
                 "data": {
                     "bridge_on": self._bridge_on,
@@ -113,17 +113,18 @@ class MinecraftBridgePlugin(Star):
                 }
             })
         except Exception as e:
-            return jsonify({"status": "error", "message": str(e)})
+            from astrbot.api.web import error_response
+            return error_response(str(e))
 
     async def _api_servers(self):
         """GET /astrbot_plugin_minecraft_bridge/servers - 获取已连接服务器详情。"""
-        from quart import jsonify
+        from astrbot.api.web import json_response
         try:
             servers = []
             for info in self.bridge.registry.get_all_connection_info():
                 if info is not None:
                     servers.append(info)
-            return jsonify({
+            return json_response({
                 "status": "ok",
                 "data": {
                     "servers": servers,
@@ -131,31 +132,34 @@ class MinecraftBridgePlugin(Star):
                 }
             })
         except Exception as e:
-            return jsonify({"status": "error", "message": str(e)})
+            from astrbot.api.web import error_response
+            return error_response(str(e))
 
     async def _api_start(self):
         """POST /astrbot_plugin_minecraft_bridge/start - 启动 WS 服务。"""
-        from quart import jsonify
+        from astrbot.api.web import json_response
         try:
             if self._bridge_on:
-                return jsonify({"status": "ok", "message": "WS 服务已在运行"})
+                return json_response({"status": "ok", "message": "WS 服务已在运行"})
             self._bridge_on = True
             self.bridge.start()
-            return jsonify({"status": "ok", "message": "WS 服务已启动"})
+            return json_response({"status": "ok", "message": "WS 服务已启动"})
         except Exception as e:
-            return jsonify({"status": "error", "message": str(e)})
+            from astrbot.api.web import error_response
+            return error_response(str(e))
 
     async def _api_stop(self):
         """POST /astrbot_plugin_minecraft_bridge/stop - 停止 WS 服务。"""
-        from quart import jsonify
+        from astrbot.api.web import json_response
         try:
             if not self._bridge_on:
-                return jsonify({"status": "ok", "message": "WS 服务未在运行"})
+                return json_response({"status": "ok", "message": "WS 服务未在运行"})
             self._bridge_on = False
             await self.bridge.stop()
-            return jsonify({"status": "ok", "message": "WS 服务已停止"})
+            return json_response({"status": "ok", "message": "WS 服务已停止"})
         except Exception as e:
-            return jsonify({"status": "error", "message": str(e)})
+            from astrbot.api.web import error_response
+            return error_response(str(e))
 
     async def initialize(self):
         """异步初始化：按配置启动 WS 服务。"""
