@@ -90,7 +90,7 @@ class WSServer:
             await ws.close()
             return ws
 
-        logger.info(f"收到来自 {request.remote} 的 WS 握手，鉴权通过，等待 heartbeat")
+        logger.info(f"收到来自 {request.remote} 的 WS 握手，鉴权通过，等待 hello")
 
         conn: Optional[BridgeConnection] = None
         try:
@@ -100,18 +100,18 @@ class WSServer:
                     if not data:
                         logger.debug("收到非法 JSON 帧")
                         continue
-                    # 首条必须是 heartbeat，用于确定 server_id 并注册
                     msg_type = data.get("type")
                     if conn is None:
-                        if msg_type == protocol.MSG_HEARTBEAT:
+                        if msg_type == protocol.MSG_HELLO:
                             server_id = data.get("server_id") or "default"
                             conn = BridgeConnection(server_id, ws, self.registry.pending, self.heartbeat_timeout)
+                            conn.apply_hello(data)
                             await self.registry.register(conn)
                             conn.touch()
-                            await conn.send_heartbeat_ack()
-                            logger.info(f"[{server_id}] 连接注册完成")
+                            await conn.send_hello_ack()
+                            logger.info(f"[{server_id}] 握手完成 (mod={conn.mod_version}, caps={conn.capabilities})")
                         else:
-                            logger.warning("连接未初始化（无 heartbeat）即发送数据")
+                            logger.warning("连接未初始化（无 hello）即发送数据")
                             break
                     else:
                         conn.touch()

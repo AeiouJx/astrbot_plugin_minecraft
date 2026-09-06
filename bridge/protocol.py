@@ -20,6 +20,8 @@ MSG_TASK = "task"
 MSG_QUERY = "query"
 MSG_TASK_RESULT = "task_result"
 MSG_QUERY_RESULT = "query_result"
+MSG_HELLO = "hello"
+MSG_HELLO_ACK = "hello_ack"
 
 # ---- 事件类型（游戏侧 G->S）----
 EVENT_CHAT = "chat"
@@ -59,6 +61,16 @@ def build_heartbeat_ack(server_id: str) -> str:
     return json.dumps({
         "type": MSG_HEARTBEAT_ACK,
         "server_id": server_id,
+        "timestamp": now(),
+    })
+
+
+def build_hello_ack(server_id: str, capabilities: list[str] = None) -> str:
+    """S->G hello_ack：确认握手并返回服务端能力列表。"""
+    return json.dumps({
+        "type": MSG_HELLO_ACK,
+        "server_id": server_id,
+        "capabilities": capabilities or [],
         "timestamp": now(),
     })
 

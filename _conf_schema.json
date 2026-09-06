@@ -9,48 +9,52 @@
         "description": "WebSocket 监听端口",
         "type": "int",
         "default": 8765,
-        "hint": "与 ZenithProxy 插件 bridge.wsPort 一致"
+        "hint": "与 ZenithProxy 插件 bridge.wsPort 一致",
+        "slider": {"min": 1024, "max": 65535, "step": 1}
     },
     "ws_path": {
         "description": "WebSocket 路径",
         "type": "string",
-        "default": "/ws"
+        "default": "/ws",
+        "hint": "默认 /ws，两端需一致"
     },
     "shared_token": {
         "description": "共享鉴权 Token",
         "type": "string",
         "secret": true,
         "default": "change-me",
-        "hint": "两端需一致，必须修改默认值！与 Java 端 bridge.sharedToken 保持一致"
+        "hint": "两端必须完全一致，建议改为随机字符串，勿使用默认值"
     },
     "default_server_id": {
         "description": "默认服务器实例 ID",
         "type": "string",
         "default": "default",
-        "hint": "AI 工具未指定 server 时的默认实例"
+        "hint": "AI 工具未指定 server 时使用的默认实例"
     },
     "heartbeat_timeout": {
         "description": "心跳超时秒数",
         "type": "int",
         "default": 15,
-        "hint": "超过该时间未收到消息判定离线"
+        "hint": "超过该时间未收到心跳则判定客户端离线",
+        "slider": {"min": 5, "max": 60, "step": 1}
     },
     "rpc_timeout": {
-        "description": "task/query 等待结果超时秒数",
+        "description": "RPC 超时秒数",
         "type": "int",
         "default": 10,
-        "hint": "RPC 请求超过该时间未返回则报超时错误"
+        "hint": "task/query 等待结果的最大秒数",
+        "slider": {"min": 3, "max": 60, "step": 1}
     },
     "group_id_prefix": {
         "description": "虚拟群 ID 前缀",
         "type": "string",
         "default": "minecraft",
-        "hint": "生成的虚拟群 ID 格式为 {prefix}:{server_id}"
+        "hint": "生成格式: {prefix}:{server_id}，一般不需要修改"
     },
     "bridge_on": {
         "description": "启用 WebSocket 服务",
         "type": "bool",
         "default": false,
-        "hint": "插件启动时自动开启 WS 服务（需先在游戏端配置好）"
+        "hint": "插件启动时自动开启 WS 服务（需先配置好 Minecraft 端）"
     }
 }

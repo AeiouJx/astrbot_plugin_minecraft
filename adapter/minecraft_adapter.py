@@ -29,6 +29,55 @@ from .minecraft_event import MinecraftEvent
 
 _registered = False
 
+CONFIG_METADATA = {
+    "ws_host": {
+        "description": "WebSocket 监听地址",
+        "hint": "建议绑定内网地址，如 0.0.0.0 或局域网 IP",
+        "type": "string",
+    },
+    "ws_port": {
+        "description": "WebSocket 监听端口",
+        "hint": "与 ZenithProxy 插件 bridge.wsPort 一致",
+        "type": "int",
+    },
+    "ws_path": {
+        "description": "WebSocket 路径",
+        "hint": "默认 /ws，两端需一致",
+        "type": "string",
+    },
+    "shared_token": {
+        "description": "共享鉴权 Token",
+        "hint": "两端必须完全一致，建议改为随机字符串，勿使用默认值",
+        "type": "string",
+        "secret": True,
+    },
+    "default_server_id": {
+        "description": "默认服务器实例 ID",
+        "hint": "AI 工具未指定 server 时使用的默认实例",
+        "type": "string",
+    },
+    "heartbeat_timeout": {
+        "description": "心跳超时秒数",
+        "hint": "超过该时间未收到心跳则判定客户端离线",
+        "type": "int",
+    },
+    "rpc_timeout": {
+        "description": "RPC 超时秒数",
+        "hint": "task/query 等待结果的最大秒数",
+        "type": "int",
+    },
+    "group_id_prefix": {
+        "description": "虚拟群 ID 前缀",
+        "hint": "生成格式: {prefix}:{server_id}，一般不需要修改",
+        "type": "string",
+    },
+    "bridge_on": {
+        "description": "启用 WebSocket 服务",
+        "hint": "插件启动时自动开启 WS 服务（需先配置好 Minecraft 端）",
+        "type": "bool",
+    },
+}
+
 
 def _register_adapter():
     global _registered
@@ -37,9 +86,10 @@ def _register_adapter():
     _registered = True
 
     @register_platform_adapter(
-        "minecraft",
-        "Minecraft 虚拟平台（经 ZenithProxy Bridge 桥接）",
+        "minecraft_bridge",
+        "Minecraft Bridge（ZenithProxy WebSocket 桥接）",
         default_config_tmpl={},
+        config_metadata=CONFIG_METADATA,
     )
     class MinecraftPlatformAdapter(Platform):
         """把游戏内聊天室映射为 AstrBot 的一个虚拟群会话。"""
@@ -58,9 +108,9 @@ def _register_adapter():
 
         def meta(self) -> PlatformMetadata:
             return PlatformMetadata(
-                name="minecraft",
-                description="Minecraft 虚拟平台（经 ZenithProxy Bridge 桥接）",
-                id="minecraft",
+                name="minecraft_bridge",
+                description="Minecraft Bridge（ZenithProxy WebSocket 桥接）",
+                id="minecraft_bridge",
             )
 
         async def run(self) -> None:
@@ -169,4 +219,9 @@ def _register_adapter():
 
 def _ensure_registered():
     """确保适配器已注册（由 main.py 调用）。"""
+    # 检查运行时状态中是否已有实例（热重载存活）
+    from ..bridge.runtime_state import get_adapter_instance
+    existing = get_adapter_instance("minecraft_bridge")
+    if existing is not None:
+        logger.debug("从运行时状态恢复适配器实例")
     _register_adapter()

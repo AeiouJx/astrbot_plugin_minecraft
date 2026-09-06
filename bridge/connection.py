@@ -39,6 +39,11 @@ class BridgeConnection:
         self.heartbeat_timeout = heartbeat_timeout
         self.last_seen: float = protocol.now()
         self.closed: bool = False
+        # hello 握手元数据
+        self.server_name: str = ""
+        self.mod_version: str = ""
+        self.capabilities: list[str] = []
+        self.connected_at: float = protocol.now()
 
     @property
     def alive(self) -> bool:
@@ -48,6 +53,12 @@ class BridgeConnection:
     def touch(self) -> None:
         """更新存活时间（收到任意消息时调用）。"""
         self.last_seen = protocol.now()
+
+    def apply_hello(self, data: dict) -> None:
+        """从 hello 消息中提取元数据。"""
+        self.server_name = data.get("server_name", "")
+        self.mod_version = data.get("mod_version", "")
+        self.capabilities = data.get("capabilities", [])
 
     async def send_text(self, raw: str) -> bool:
         """发送文本帧，失败返回 False。"""
@@ -74,6 +85,10 @@ class BridgeConnection:
         """回复心跳确认。"""
         await self.send_text(protocol.build_heartbeat_ack(self.server_id))
 
+    async def send_hello_ack(self, capabilities: list[str] = None) -> None:
+        """回复握手确认。"""
+        await self.send_text(protocol.build_hello_ack(self.server_id, capabilities))
+
     async def close(self) -> None:
         """关闭连接并清理。"""
         self.closed = True
@@ -93,6 +108,10 @@ class MockConnection(BridgeConnection):
         self.heartbeat_timeout = 9999.0
         self.last_seen = protocol.now()
         self.closed = True
+        self.server_name = ""
+        self.mod_version = ""
+        self.capabilities = []
+        self.connected_at = protocol.now()
 
     async def send_text(self, raw: str) -> bool:
         return False

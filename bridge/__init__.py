@@ -12,6 +12,7 @@ from astrbot.api import logger
 
 from .registry import Registry
 from .ws_server import WSServer
+from . import runtime_state
 
 
 class BridgeManager:
@@ -32,23 +33,31 @@ class BridgeManager:
 
     @classmethod
     def get_instance(cls) -> "BridgeManager":
-        """获取单例。未初始化则新建（config 为空，启动前应调用 configure）。"""
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+        """获取单例。优先从运行时状态恢复（热重载存活）。"""
+        # 先尝试从运行时模块获取（存活于重载）
+        inst = runtime_state.get_bridge_manager()
+        if inst is not None:
+            cls._instance = inst
+            return inst
+        # 再检查类变量
+        if cls._instance is not None:
+            return cls._instance
+        # 都没有则新建
+        inst = cls()
+        cls._instance = inst
+        runtime_state.set_bridge_manager(inst)
+        return inst
 
     @classmethod
     def configure(cls, config: dict) -> "BridgeManager":
         """应用配置并返回单例。"""
         config = config or {}
-        if cls._instance is not None:
-            inst = cls._instance
-            inst.config = config
-            inst.rpc_timeout = float(config.get("rpc_timeout", 10))
-            inst.ws_server.apply_config(config)
-            return inst
-        inst = cls(config)
+        inst = cls.get_instance()
+        inst.config = config
+        inst.rpc_timeout = float(config.get("rpc_timeout", 10))
+        inst.ws_server.apply_config(config)
         cls._instance = inst
+        runtime_state.set_bridge_manager(inst)
         return inst
 
     def start(self) -> None:

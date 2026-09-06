@@ -69,6 +69,24 @@ class Registry:
     def online_count(self) -> int:
         return len(self._conns)
 
+    def get_connection_info(self, server_id: str) -> Optional[dict]:
+        """获取连接元数据（用于状态查询）。"""
+        conn = self._conns.get(server_id)
+        if conn is None:
+            return None
+        return {
+            "server_id": conn.server_id,
+            "server_name": conn.server_name,
+            "mod_version": conn.mod_version,
+            "capabilities": conn.capabilities,
+            "connected_at": conn.connected_at,
+            "last_seen": conn.last_seen,
+        }
+
+    def get_all_connection_info(self) -> list[dict]:
+        """获取所有连接元数据。"""
+        return [self.get_connection_info(sid) for sid in self._conns]
+
     @property
     def pending(self) -> protocol.PendingFuture:
         return self._pending

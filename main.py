@@ -26,6 +26,25 @@ from .tools import (
     do_send_chat,
 )
 
+# 工具提示：根据可用工具动态注入 LLM 系统提示
+TOOL_HINTS = {
+    "get_server_status": "调用 get_server_status 可查询 Minecraft 服务器连接状态、Bot 血量/饥饿/坐标。",
+    "get_online_players": "调用 get_online_players 可获取当前在线玩家列表及人数。",
+    "get_bot_state": "调用 get_bot_state 可获取 Bot 详细状态（血量、饥饿值、坐标、手持物品）。",
+    "get_inventory": "调用 get_inventory 可获取 Bot 背包物品列表及数量。",
+    "get_nearby_entities": "调用 get_nearby_entities 可获取 Bot 附近实体（可指定搜索半径）。",
+    "move_bot": "调用 move_bot 可让 Bot 使用 baritone 寻路移动到指定坐标。",
+    "attack_nearest": "调用 attack_nearest 可让 Bot 攻击附近最近的攻击性实体。",
+    "send_chat": "调用 send_chat 可让 Bot 在 Minecraft 服务器发送公共聊天消息。",
+}
+
+SAFETY_HINT = (
+    "\n\n[安全提示] Bot 在 Minecraft 世界中执行操作时，请注意："
+    "\n- 移动和攻击操作可能消耗游戏资源或触发危险"
+    "\n- 建议先查询状态再决定是否执行动作"
+    "\n- 避免在没有玩家监督的情况下执行不可逆操作"
+)
+
 
 class MinecraftBridgePlugin(Star):
     """Minecraft Bridge 插件 - 双向消息桥接 + AI 控制"""
@@ -42,6 +61,102 @@ class MinecraftBridgePlugin(Star):
         # 是否开启 WS 服务（启动时再 start）
         self._bridge_on = bool(self.config.get("bridge_on", False))
 
+        # 注册 Web API 端点
+        self._register_web_apis()
+
+    def _register_web_apis(self):
+        """注册自定义 Web API 端点（插件 Pages 面板可访问）。"""
+        try:
+            self.context.register_web_api(
+                "/astrbot_plugin_minecraft_bridge/status",
+                self._api_status,
+                ["GET"],
+                "获取桥接状态信息",
+            )
+            self.context.register_web_api(
+                "/astrbot_plugin_minecraft_bridge/servers",
+                self._api_servers,
+                ["GET"],
+                "获取已连接服务器列表",
+            )
+            self.context.register_web_api(
+                "/astrbot_plugin_minecraft_bridge/start",
+                self._api_start,
+                ["POST"],
+                "启动 WS 服务",
+            )
+            self.context.register_web_api(
+                "/astrbot_plugin_minecraft_bridge/stop",
+                self._api_stop,
+                ["POST"],
+                "停止 WS 服务",
+            )
+        except Exception as e:
+            logger.debug(f"Web API 注册失败（可能不支持）: {e}")
+
+    # ==================== Web API 处理器 ====================
+
+    async def _api_status(self):
+        """GET /astrbot_plugin_minecraft_bridge/status - 获取桥接状态。"""
+        from quart import jsonify
+        try:
+            return jsonify({
+                "status": "ok",
+                "data": {
+                    "bridge_on": self._bridge_on,
+                    "ws_host": self.config.get("ws_host", "0.0.0.0"),
+                    "ws_port": self.config.get("ws_port", 8765),
+                    "ws_path": self.config.get("ws_path", "/ws"),
+                    "online_count": self.bridge.registry.online_count,
+                    "connected_servers": self.bridge.registry.server_ids,
+                    "pending_queries": len(self.bridge.registry.pending),
+                }
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _api_servers(self):
+        """GET /astrbot_plugin_minecraft_bridge/servers - 获取已连接服务器详情。"""
+        from quart import jsonify
+        try:
+            servers = []
+            for info in self.bridge.registry.get_all_connection_info():
+                if info is not None:
+                    servers.append(info)
+            return jsonify({
+                "status": "ok",
+                "data": {
+                    "servers": servers,
+                    "count": len(servers),
+                }
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _api_start(self):
+        """POST /astrbot_plugin_minecraft_bridge/start - 启动 WS 服务。"""
+        from quart import jsonify
+        try:
+            if self._bridge_on:
+                return jsonify({"status": "ok", "message": "WS 服务已在运行"})
+            self._bridge_on = True
+            self.bridge.start()
+            return jsonify({"status": "ok", "message": "WS 服务已启动"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _api_stop(self):
+        """POST /astrbot_plugin_minecraft_bridge/stop - 停止 WS 服务。"""
+        from quart import jsonify
+        try:
+            if not self._bridge_on:
+                return jsonify({"status": "ok", "message": "WS 服务未在运行"})
+            self._bridge_on = False
+            await self.bridge.stop()
+            return jsonify({"status": "ok", "message": "WS 服务已停止"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
     async def initialize(self):
         """异步初始化：按配置启动 WS 服务。"""
         if self._bridge_on:
@@ -52,6 +167,39 @@ class MinecraftBridgePlugin(Star):
         """插件卸载/停用时清理。"""
         await self.bridge.stop()
         logger.info("Minecraft Bridge 插件已卸载")
+
+    # ==================== LLM 请求拦截 ====================
+
+    @filter.on_llm_request()
+    async def on_llm_request(self, event: AstrMessageEvent, request):
+        """动态注入工具提示到 LLM 系统提示。"""
+        # 仅处理来自 minecraft_bridge 平台或包含关键词的消息
+        platform_id = getattr(event, "platform_id", "")
+        message_text = (getattr(event, "message_str", "") or "").lower()
+
+        is_minecraft = platform_id == "minecraft_bridge"
+        has_keywords = any(kw in message_text for kw in ["mc", "minecraft", "bot", "服务器", "玩家", "背包"])
+
+        if not is_minecraft and not has_keywords:
+            return
+
+        # 收集可用工具的提示
+        available_tools = [
+            "get_server_status", "get_online_players", "get_bot_state",
+            "get_inventory", "get_nearby_entities", "move_bot",
+            "attack_nearest", "send_chat",
+        ]
+        hints = [TOOL_HINTS[name] for name in available_tools if name in TOOL_HINTS]
+        if hints:
+            prompt_parts = ["[Minecraft Bridge 工具提示] 你可以使用以下工具与 Minecraft 服务器交互："]
+            prompt_parts.extend(hints)
+            prompt_parts.append(SAFETY_HINT)
+            injection = "\n".join(prompt_parts)
+            # 追加到系统提示
+            if hasattr(request, "system_prompt") and request.system_prompt:
+                request.system_prompt += "\n\n" + injection
+            else:
+                request.system_prompt = injection
 
     # ==================== 命令 ====================
 
