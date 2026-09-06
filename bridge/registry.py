@@ -184,16 +184,24 @@ class Registry:
 
     async def monitor(self) -> None:
         """后台监控任务：每 1s 扫描，last_seen 超时 -> 广播离线并移除注册表。"""
-        while True:
-            await asyncio.sleep(1)
-            to_remove = [
-                sid for sid, conn in self._conns.items()
-                if not conn.alive and not conn.closed
-            ]
-            for sid in to_remove:
-                logger.warning(f"[{sid}] 心跳超时，判定离线")
-                await self._notify_offline(sid)
-                await self.unregister(sid, "heartbeat timeout")
+        if hasattr(self, '_monitor_running') and self._monitor_running:
+            return  # 防止重复启动
+        self._monitor_running = True
+        try:
+            while True:
+                await asyncio.sleep(1)
+                to_remove = [
+                    sid for sid, conn in self._conns.items()
+                    if not conn.alive and not conn.closed
+                ]
+                for sid in to_remove:
+                    logger.warning(f"[{sid}] 心跳超时，判定离线")
+                    await self._notify_offline(sid)
+                    await self.unregister(sid, "heartbeat timeout")
+        except asyncio.CancelledError:
+            pass
+        finally:
+            self._monitor_running = False
 
     async def _notify_offline(self, server_id: str) -> None:
         """向状态队列广播 bot_status offline。"""

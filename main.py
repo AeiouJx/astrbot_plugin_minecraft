@@ -281,17 +281,17 @@ class MinecraftBridgePlugin(Star):
         if not group_id:
             logger.debug("[_is_group_allowed] group_id 为空，允许")
             return True
-        group_id_str = str(group_id)
-        blocked = [str(g) for g in self.config.get("blocked_groups", [])]
+        group_id_str = str(group_id).strip()
+        blocked = [str(g).strip() for g in self.config.get("blocked_groups", [])]
         if blocked and group_id_str in blocked:
-            logger.debug(f"[_is_group_allowed] 群 {group_id_str} 在黑名单中，拒绝")
+            logger.info(f"[_is_group_allowed] 群 {group_id_str} 在黑名单中，拒绝")
             return False
-        allowed = [str(g) for g in self.config.get("allowed_groups", [])]
+        allowed = [str(g).strip() for g in self.config.get("allowed_groups", [])]
         if not allowed:
             logger.debug("[_is_group_allowed] 白名单为空，允许所有群")
             return True
         result = group_id_str in allowed
-        logger.debug(f"[_is_group_allowed] 群 {group_id_str} 白名单检查: {result}, 白名单={allowed}")
+        logger.info(f"[_is_group_allowed] 群={group_id_str}, 白名单={allowed}, 结果={result}")
         return result
 
     @filter.command("mcbridge")

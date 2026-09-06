@@ -49,28 +49,33 @@ class WSServer:
         """在事件循环中启动 WS 服务（非阻塞启动后台任务）。"""
         if self._runner is not None:
             # 已在运行，先停止再用新配置重启
+            logger.info("WS 服务已在运行，执行重启...")
             asyncio.create_task(self._restart())
             return
         self._task = asyncio.create_task(self._run())
-        # 同时启动心跳监控
-        asyncio.create_task(self.registry.monitor())
         logger.info(f"WS 服务正在启动: ws://{self.host}:{self.port}{self.path}")
 
     async def _restart(self) -> None:
         """重启 WS 服务（应用新配置）。"""
         logger.info("WS 服务正在重启...")
         await self.stop()
+        await asyncio.sleep(1)  # 额外等待端口释放
         self._task = asyncio.create_task(self._run())
-        asyncio.create_task(self.registry.monitor())
 
     async def stop(self) -> None:
         """停止 WS 服务。"""
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+            self._task = None
         if self._runner:
             await self._runner.cleanup()
             self._runner = None
-        if self._task:
-            self._task.cancel()
-            self._task = None
+        # 等待端口释放
+        await asyncio.sleep(0.5)
         logger.info("WS 服务已停止")
 
     async def _run(self) -> None:
@@ -84,6 +89,9 @@ class WSServer:
             await site.start()
             logger.info(f"WS 服务已监听: ws://{self.host}:{self.port}{self.path}")
             logger.info(f"WS 绑定地址: host={self.host!r}, port={self.port}")
+        except OSError as e:
+            logger.error(f"WS 服务启动失败（端口可能被占用）: {e}")
+            self._runner = None
         except Exception as e:  # noqa: BLE001
             logger.error(f"WS 服务启动失败: {e}")
             self._runner = None
