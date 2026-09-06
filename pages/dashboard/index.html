@@ -20,6 +20,8 @@
         .btn-primary:hover { background: #40a9ff; }
         .btn-danger { background: #ff4d4f; color: white; }
         .btn-danger:hover { background: #ff7875; }
+        .btn-success { background: #52c41a; color: white; }
+        .btn-success:hover { background: #73d13d; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .server-list { list-style: none; }
         .server-list li { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
@@ -28,6 +30,16 @@
         .server-meta { font-size: 12px; color: #666; }
         .empty { color: #999; text-align: center; padding: 20px; }
         .loading { color: #999; text-align: center; padding: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: #333; }
+        .form-group .hint { font-size: 12px; color: #666; margin-bottom: 4px; }
+        .form-group input, .form-group select { width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.2); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 6px; color: white; font-size: 14px; z-index: 1000; animation: fadeInOut 2s ease-in-out; }
+        .toast-success { background: #52c41a; }
+        .toast-error { background: #ff4d4f; }
+        @keyframes fadeInOut { 0% { opacity: 0; transform: translateY(-10px); } 10% { opacity: 1; transform: translateY(0); } 90% { opacity: 1; } 100% { opacity: 0; } }
     </style>
 </head>
 <body>
@@ -46,8 +58,28 @@
         <div id="servers-content" class="loading">Loading...</div>
     </div>
 
+    <div class="card">
+        <h2>⚙️ Configuration</h2>
+        <div id="config-content" class="loading">Loading...</div>
+        <div style="margin-top: 16px;">
+            <button class="btn btn-success" onclick="saveConfig()">Save Config</button>
+            <button class="btn" onclick="refreshConfig()" style="background: #f0f0f0;">Reset</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast" style="display: none;"></div>
+
     <script>
         const bridge = window.AstrBotPluginPage;
+        let currentConfig = {};
+
+        function showToast(msg, type) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = `toast toast-${type}`;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 2000);
+        }
 
         async function refreshStatus() {
             try {
@@ -106,28 +138,112 @@
             }
         }
 
+        async function refreshConfig() {
+            try {
+                const result = await bridge.apiGet("config");
+                currentConfig = result.data || result;
+                renderConfig();
+            } catch (e) {
+                document.getElementById('config-content').innerHTML = '<div class="empty">Failed to load config</div>';
+            }
+        }
+
+        function renderConfig() {
+            const html = `
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>WebSocket 监听地址</label>
+                        <div class="hint">建议绑定内网地址，如 0.0.0.0 或局域网 IP</div>
+                        <input type="text" id="cfg_ws_host" value="${currentConfig.ws_host || '0.0.0.0'}" />
+                    </div>
+                    <div class="form-group">
+                        <label>WebSocket 监听端口</label>
+                        <div class="hint">与 ZenithProxy 插件 bridge.wsPort 一致</div>
+                        <input type="number" id="cfg_ws_port" value="${currentConfig.ws_port || 8765}" min="1024" max="65535" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>WebSocket 路径</label>
+                        <div class="hint">默认 /ws，两端需一致</div>
+                        <input type="text" id="cfg_ws_path" value="${currentConfig.ws_path || '/ws'}" />
+                    </div>
+                    <div class="form-group">
+                        <label>默认服务器实例 ID</label>
+                        <div class="hint">AI 工具未指定 server 时使用的默认实例</div>
+                        <input type="text" id="cfg_default_server_id" value="${currentConfig.default_server_id || 'default'}" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>共享鉴权 Token</label>
+                    <div class="hint">两端必须完全一致，建议改为随机字符串，勿使用默认值</div>
+                    <input type="password" id="cfg_shared_token" value="${currentConfig.shared_token || ''}" />
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>心跳超时秒数</label>
+                        <div class="hint">超过该时间未收到心跳则判定客户端离线</div>
+                        <input type="number" id="cfg_heartbeat_timeout" value="${currentConfig.heartbeat_timeout || 15}" min="5" max="60" />
+                    </div>
+                    <div class="form-group">
+                        <label>RPC 超时秒数</label>
+                        <div class="hint">task/query 等待结果的最大秒数</div>
+                        <input type="number" id="cfg_rpc_timeout" value="${currentConfig.rpc_timeout || 10}" min="3" max="60" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>虚拟群 ID 前缀</label>
+                    <div class="hint">生成格式: {prefix}:{server_id}，一般不需要修改</div>
+                    <input type="text" id="cfg_group_id_prefix" value="${currentConfig.group_id_prefix || 'minecraft'}" />
+                </div>
+            `;
+            document.getElementById('config-content').innerHTML = html;
+        }
+
+        async function saveConfig() {
+            const newConfig = {
+                ws_host: document.getElementById('cfg_ws_host').value,
+                ws_port: parseInt(document.getElementById('cfg_ws_port').value) || 8765,
+                ws_path: document.getElementById('cfg_ws_path').value,
+                shared_token: document.getElementById('cfg_shared_token').value,
+                default_server_id: document.getElementById('cfg_default_server_id').value,
+                heartbeat_timeout: parseInt(document.getElementById('cfg_heartbeat_timeout').value) || 15,
+                rpc_timeout: parseInt(document.getElementById('cfg_rpc_timeout').value) || 10,
+                group_id_prefix: document.getElementById('cfg_group_id_prefix').value,
+            };
+            try {
+                await bridge.apiPost("config/save", newConfig);
+                showToast('Config saved!', 'success');
+                refreshStatus();
+            } catch (e) {
+                showToast('Failed to save config', 'error');
+            }
+        }
+
         async function startBridge() {
             try {
                 await bridge.apiPost("start", {});
+                showToast('WS service started', 'success');
                 setTimeout(refreshStatus, 500);
             } catch (e) {
-                alert('Failed to start: ' + e.message);
+                showToast('Failed to start', 'error');
             }
         }
 
         async function stopBridge() {
             try {
                 await bridge.apiPost("stop", {});
+                showToast('WS service stopped', 'success');
                 setTimeout(refreshStatus, 500);
             } catch (e) {
-                alert('Failed to stop: ' + e.message);
+                showToast('Failed to stop', 'error');
             }
         }
 
         // Initial load
         refreshStatus();
         refreshServers();
-        // Auto refresh every 5 seconds
+        refreshConfig();
         setInterval(refreshStatus, 5000);
         setInterval(refreshServers, 5000);
     </script>

@@ -91,6 +91,18 @@ class MinecraftBridgePlugin(Star):
                 ["POST"],
                 "停止 WS 服务",
             )
+            self.context.register_web_api(
+                "/astrbot_plugin_minecraft_bridge/config",
+                self._api_get_config,
+                ["GET"],
+                "获取当前配置",
+            )
+            self.context.register_web_api(
+                "/astrbot_plugin_minecraft_bridge/config/save",
+                self._api_save_config,
+                ["POST"],
+                "保存配置",
+            )
         except Exception as e:
             logger.debug(f"Web API 注册失败（可能不支持）: {e}")
 
@@ -157,6 +169,53 @@ class MinecraftBridgePlugin(Star):
             self._bridge_on = False
             await self.bridge.stop()
             return json_response({"status": "ok", "message": "WS 服务已停止"})
+        except Exception as e:
+            from astrbot.api.web import error_response
+            return error_response(str(e))
+
+    async def _api_get_config(self):
+        """GET /astrbot_plugin_minecraft_bridge/config - 获取当前配置。"""
+        from astrbot.api.web import json_response
+        try:
+            return json_response({
+                "status": "ok",
+                "data": {
+                    "ws_host": self.config.get("ws_host", "0.0.0.0"),
+                    "ws_port": self.config.get("ws_port", 8765),
+                    "ws_path": self.config.get("ws_path", "/ws"),
+                    "shared_token": self.config.get("shared_token", "change-me"),
+                    "default_server_id": self.config.get("default_server_id", "default"),
+                    "heartbeat_timeout": self.config.get("heartbeat_timeout", 15),
+                    "rpc_timeout": self.config.get("rpc_timeout", 10),
+                    "group_id_prefix": self.config.get("group_id_prefix", "minecraft"),
+                    "bridge_on": self.config.get("bridge_on", False),
+                }
+            })
+        except Exception as e:
+            from astrbot.api.web import error_response
+            return error_response(str(e))
+
+    async def _api_save_config(self):
+        """POST /astrbot_plugin_minecraft_bridge/config/save - 保存配置。"""
+        from astrbot.api.web import json_response, request
+        try:
+            payload = await request.json(default={})
+            if not payload:
+                from astrbot.api.web import error_response
+                return error_response("No config data provided")
+
+            # 更新配置
+            for key in ["ws_host", "ws_port", "ws_path", "shared_token", "default_server_id",
+                        "heartbeat_timeout", "rpc_timeout", "group_id_prefix", "bridge_on"]:
+                if key in payload:
+                    self.config[key] = payload[key]
+
+            # 应用到 BridgeManager
+            self.bridge.config = dict(self.config)
+            self.bridge.rpc_timeout = float(self.config.get("rpc_timeout", 10))
+            self.bridge.ws_server.apply_config(self.config)
+
+            return json_response({"status": "ok", "message": "Config saved"})
         except Exception as e:
             from astrbot.api.web import error_response
             return error_response(str(e))
