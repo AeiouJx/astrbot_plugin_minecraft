@@ -371,7 +371,17 @@ class MinecraftBridgePlugin(Star):
         if first in self.bridge.registry.server_ids and rest:
             server_id, message = first, rest.strip()
         else:
-            server_id, message = self.config.get("default_server_id", "default"), remaining
+            # 自动选择服务器：优先用配置的 default_server_id，否则用第一个连接的实例
+            server_id = self.config.get("default_server_id", "default")
+            if server_id not in self.bridge.registry.server_ids:
+                # default 不在，尝试使用第一个可用实例
+                available = self.bridge.registry.server_ids
+                if available:
+                    server_id = available[0]
+                else:
+                    yield event.plain_result("❌ 没有已连接的 Minecraft 实例")
+                    return
+            message = remaining
 
         try:
             await self.bridge.send_chat(server_id, message)

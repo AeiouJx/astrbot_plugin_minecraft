@@ -15,7 +15,16 @@ from ..bridge import protocol as Pr
 
 
 def _resolve(server: Optional[str], bridge: BridgeManager) -> str:
-    return server or bridge.config.get("default_server_id", "default")
+    if server:
+        return server
+    default_id = bridge.config.get("default_server_id", "default")
+    if default_id in bridge.registry.server_ids:
+        return default_id
+    # default 不在，用第一个可用实例
+    available = bridge.registry.server_ids
+    if available:
+        return available[0]
+    return default_id
 
 
 def not_connected_msg(e: Exception, server: str) -> str:
