@@ -86,6 +86,21 @@ CONFIG_METADATA = {
         "hint": "这些群无法使用 Minecraft Bridge 命令（优先级高于白名单）",
         "type": "list",
     },
+    "llm_reply_enabled": {
+        "description": "启用 LLM 自动回复",
+        "hint": "开启后，游戏内玩家聊天会触发 AI 自动回复",
+        "type": "bool",
+    },
+    "llm_reply_weight": {
+        "description": "LLM 回复触发权重",
+        "hint": "触发概率 = 权重 / 10。权重越高越容易触发 LLM 回复",
+        "type": "int",
+    },
+    "llm_prompt_template": {
+        "description": "LLM 回复提示模板",
+        "hint": "支持变量: {player_name} = 发言玩家名, {message} = 消息内容",
+        "type": "text",
+    },
 }
 
 
@@ -125,6 +140,7 @@ def _register_adapter():
 
         async def run(self) -> None:
             """阻塞消费 BridgeManager 的 chat 事件队列。"""
+            import random
             logger.info("Minecraft Platform Adapter 已启动")
             while True:
                 try:
@@ -134,12 +150,49 @@ def _register_adapter():
                         abm = await self.convert_message(item)
                         if abm is not None and not self._is_duplicate(item):
                             await self.handle_msg(abm)
+                            # LLM 自动回复
+                            if event_type == EVENT_CHAT and self._should_llm_reply():
+                                await self._try_llm_reply(item)
                     else:
                         logger.debug(f"忽略非聊天事件: {event_type}")
                 except asyncio.CancelledError:
                     break
                 except Exception as e:  # noqa: BLE001
                     logger.error(f"Minecraft Adapter 事件处理异常: {e}")
+
+        def _should_llm_reply(self) -> bool:
+            """根据权重判断是否触发 LLM 回复。"""
+            config = self.bridge.config
+            if not config.get("llm_reply_enabled", False):
+                return False
+            weight = int(config.get("llm_reply_weight", 0))
+            if weight <= 0:
+                return False
+            # 简单概率触发：权重越高越容易触发
+            # 权重 1 = 10% 概率，权重 5 = 50% 概率，权重 10 = 100% 概率
+            return random.random() < (weight / 10.0)
+
+        async def _try_llm_reply(self, item: dict) -> None:
+            """尝试调用 LLM 生成回复。"""
+            try:
+                payload = item.get("data", {})
+                player_name = payload.get("sender", "unknown")
+                message = payload.get("message", "")
+                server_id = item.get("server_id", "default")
+
+                # 格式化提示模板
+                template = self.bridge.config.get("llm_prompt_template", "")
+                if not template:
+                    return
+                prompt = template.replace("{player_name}", player_name).replace("{message}", message)
+
+                # 通过 AstrBot context 调用 LLM
+                # 这里我们直接构造一个消息发送到 AstrBot，让 AstrBot 处理 LLM 调用
+                # 然后捕获回复发送到游戏
+                logger.info(f"[{server_id}] LLM 回复触发: player={player_name}, msg={message[:50]}...")
+                # TODO: 接入 AstrBot LLM 调用
+            except Exception as e:
+                logger.error(f"LLM 回复失败: {e}")
 
         async def convert_message(self, data: dict) -> AstrBotMessage | None:
             """将桥接事件字典转换为 AstrBotMessage。
