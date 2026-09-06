@@ -83,6 +83,21 @@
     
     .empty-state { text-align: center; padding: 40px 20px; color: #999; }
     .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    
+    /* 顶部状态栏 */
+    .top-bar { display: flex; padding: 16px; background: #fff; border-bottom: 1px solid #e0e0e0; gap: 24px; }
+    .top-bar-item { flex: 1; text-align: center; padding: 12px; background: #f9f9f9; border-radius: 8px; }
+    .top-bar-label { font-size: 12px; color: #888; margin-bottom: 4px; }
+    .top-bar-value { font-size: 18px; font-weight: 600; color: #333; }
+    .top-bar-value.status-on { color: #2e7d32; }
+    .top-bar-value.status-off { color: #c62828; }
+    
+    /* 已连接服务器列表 */
+    .connected-servers { padding: 12px 16px; background: #fff; border-bottom: 1px solid #e0e0e0; }
+    .connected-servers h4 { font-size: 13px; color: #666; margin-bottom: 8px; }
+    .server-chip { display: inline-block; padding: 6px 12px; margin: 4px; background: #e8f5e9; border-radius: 16px; font-size: 13px; }
+    .server-chip .name { font-weight: 500; }
+    .server-chip .meta { color: #666; margin-left: 8px; font-size: 11px; }
   </style>
 </head>
 <body>
@@ -107,6 +122,31 @@
     
     <!-- 中间：消息区域 -->
     <div class="main-content">
+      <!-- 顶部状态栏 -->
+      <div class="top-bar">
+        <div class="top-bar-item">
+          <div class="top-bar-label">WS 服务</div>
+          <div class="top-bar-value" id="ws-service-status">-</div>
+        </div>
+        <div class="top-bar-item">
+          <div class="top-bar-label">监听地址</div>
+          <div class="top-bar-value" id="listen-addr">-</div>
+        </div>
+        <div class="top-bar-item">
+          <div class="top-bar-label">已连接实例</div>
+          <div class="top-bar-value" id="online-count">0</div>
+        </div>
+        <div class="top-bar-item">
+          <div class="top-bar-label">待处理查询</div>
+          <div class="top-bar-value" id="pending-queries">0</div>
+        </div>
+      </div>
+      
+      <!-- 已连接服务器列表 -->
+      <div class="connected-servers" id="connected-servers">
+        <!-- 动态填充 -->
+      </div>
+      
       <div class="header">
         <h2 id="current-instance">选择一个实例</h2>
         <button class="btn btn-outline" onclick="clearMessages()">清空消息</button>
@@ -200,16 +240,41 @@
         const data = await resp.json();
         const status = data.status || data;
         
+        // 更新顶部状态栏
         document.getElementById('ws-status').textContent = status.ws_running ? '运行中' : '未连接';
         document.getElementById('ws-status').className = `status-badge ${status.ws_running ? 'status-running' : 'status-stopped'}`;
-        document.getElementById('online-count').textContent = status.online_count || 0;
+        document.getElementById('ws-service-status').textContent = status.ws_running ? '✅ 运行中' : '❌ 未启动';
+        document.getElementById('ws-service-status').className = `top-bar-value ${status.ws_running ? 'status-on' : 'status-off'}`;
         document.getElementById('listen-addr').textContent = `ws://${status.ws_host || '0.0.0.0'}:${status.ws_port || 8765}`;
+        document.getElementById('online-count').textContent = status.online_count || 0;
+        document.getElementById('pending-queries').textContent = status.pending_queries || 0;
         
+        // 更新已连接服务器列表
         instances = status.servers || [];
+        renderConnectedServers();
         renderInstances();
       } catch (e) {
         console.error('加载状态失败:', e);
       }
+    }
+    
+    // 渲染已连接服务器
+    function renderConnectedServers() {
+      const container = document.getElementById('connected-servers');
+      if (instances.length === 0) {
+        container.innerHTML = '<h4>已连接服务器</h4><div style="color:#999;font-size:13px;">暂无已连接实例</div>';
+        return;
+      }
+      
+      container.innerHTML = `
+        <h4>已连接服务器 (${instances.length})</h4>
+        ${instances.map(inst => `
+          <div class="server-chip">
+            <span class="name">${inst.server_id}</span>
+            <span class="meta">Mod: ${inst.mod_version || '-'} | Caps: ${(inst.capabilities || []).join(', ')}</span>
+          </div>
+        `).join('')}
+      `;
     }
     
     // 渲染实例列表
