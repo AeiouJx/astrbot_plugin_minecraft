@@ -204,8 +204,15 @@ def _register_adapter():
 
         async def _push_event_to_group(self, item: dict) -> None:
             """推送游戏事件到配置的群聊。"""
-            if not self.bridge.config.get("server_event_push_enabled", False):
-                return
+            event_type = item.get("event_type")
+            
+            # 检查是否启用推送
+            if event_type in ("chat", "whisper"):
+                if not self.bridge.config.get("chat_push_enabled", False):
+                    return
+            else:
+                if not self.bridge.config.get("server_event_push_enabled", False):
+                    return
 
             event_group = self.bridge.config.get("minecraft_event_group", "")
             if not event_group:
@@ -222,7 +229,18 @@ def _register_adapter():
 
             # 格式化事件消息
             msg = None
-            if event_type == "player_join":
+            if event_type == "chat":
+                sender = payload.get("sender", "unknown")
+                message = payload.get("message", "")
+                if message:
+                    msg = f"[{server_id}] {sender}: {message}"
+            elif event_type == "whisper":
+                sender = payload.get("sender", "unknown")
+                message = payload.get("message", "")
+                receiver = payload.get("receiver", "")
+                if message and not payload.get("outgoing"):
+                    msg = f"[{server_id}] {sender} -> {receiver}: {message}"
+            elif event_type == "player_join":
                 player = payload.get("player", "unknown")
                 msg = f"[{server_id}] 玩家 {player} 加入了游戏"
             elif event_type == "player_leave":
@@ -243,11 +261,14 @@ def _register_adapter():
                 try:
                     context = getattr(self.bridge, 'context', None)
                     if context:
-                        from astrbot.api.event import AstrMessageEvent, MessageChain
+                        # 使用 AstrBot 的消息发送能力推送到群聊
                         from astrbot.api.message_components import Plain
-                        # 构造消息并发送到群聊
-                        # 使用 AstrBot 的消息发送能力
-                        logger.info(f"事件推送: {msg}")
+                        from astrbot.core.platform.astr_message_event import MessageChain
+                        # 构造消息链
+                        chain = MessageChain([Plain(text=msg)])
+                        # 发送到指定群聊（event_group 是 unified_msg_origin 格式）
+                        await context.send_message(event_group, chain)
+                        logger.info(f"事件推送到群 {event_group}: {msg}")
                 except Exception as e:
                     logger.error(f"事件推送失败: {e}")
 

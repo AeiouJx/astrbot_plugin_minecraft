@@ -81,6 +81,12 @@
         "default": false,
         "hint": "接收并投递 Mod 发来的玩家上下线、死亡和公开成就事件"
     },
+    "chat_push_enabled": {
+        "description": "启用聊天消息推送到群",
+        "type": "bool",
+        "default": false,
+        "hint": "将 Minecraft 玩家聊天推送到配置的群聊"
+    },
     "minecraft_event_group": {
         "description": "Minecraft 事件推送群号",
         "type": "string",
