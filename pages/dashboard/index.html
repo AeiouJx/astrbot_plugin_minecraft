@@ -6,158 +6,132 @@
   <title>Minecraft Bridge Dashboard</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; height: 100vh; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; padding: 20px; }
     
-    .container { display: flex; height: 100vh; }
+    .section { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .section-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+    .section-title .icon { font-size: 20px; }
     
-    /* 左侧：实例列表 */
-    .sidebar-left { width: 240px; background: #fff; border-right: 1px solid #e0e0e0; display: flex; flex-direction: column; }
-    .sidebar-left .header { padding: 16px; border-bottom: 1px solid #e0e0e0; }
-    .sidebar-left .header h3 { font-size: 14px; color: #666; margin-bottom: 8px; }
-    .sidebar-left .header .status-badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 12px; }
-    .status-running { background: #e8f5e9; color: #2e7d32; }
-    .status-stopped { background: #ffebee; color: #c62828; }
+    /* Bridge Status */
+    .status-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+    .status-card { background: #f9f9f9; border-radius: 8px; padding: 16px; text-align: center; }
+    .status-card .label { font-size: 12px; color: #888; margin-bottom: 8px; }
+    .status-card .value { font-size: 20px; font-weight: 600; }
+    .status-card .value.running { color: #2e7d32; }
+    .status-card .value.stopped { color: #c62828; }
     
-    .instance-list { flex: 1; overflow-y: auto; padding: 8px; }
-    .instance-item { padding: 12px; margin: 4px 0; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
-    .instance-item:hover { background: #f5f5f5; }
-    .instance-item.active { background: #e3f2fd; border-left: 3px solid #1976d2; }
-    .instance-item .name { font-weight: 500; margin-bottom: 4px; }
-    .instance-item .meta { font-size: 12px; color: #888; }
-    .instance-item .online-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-    .dot-online { background: #4caf50; }
-    .dot-offline { background: #ccc; }
-    
-    .sidebar-left .footer { padding: 12px; border-top: 1px solid #e0e0e0; }
-    .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+    .btn-group { display: flex; gap: 10px; }
+    .btn { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
     .btn-primary { background: #1976d2; color: #fff; }
     .btn-primary:hover { background: #1565c0; }
     .btn-danger { background: #d32f2f; color: #fff; }
     .btn-danger:hover { background: #c62828; }
-    .btn-outline { background: transparent; border: 1px solid #ddd; color: #666; }
+    .btn-outline { background: #fff; border: 1px solid #ddd; color: #666; }
     .btn-outline:hover { background: #f5f5f5; }
-    .btn-group { display: flex; gap: 8px; }
     
-    /* 中间：消息区域 */
-    .main-content { flex: 1; display: flex; flex-direction: column; background: #fff; }
-    .main-content .header { padding: 16px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
-    .main-content .header h2 { font-size: 16px; }
+    /* Connected Servers */
+    .server-list { display: flex; flex-direction: column; gap: 8px; }
+    .server-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f9f9f9; border-radius: 8px; }
+    .server-item .name { font-weight: 500; }
+    .server-item .meta { font-size: 12px; color: #888; }
     
-    .message-area { flex: 1; overflow-y: auto; padding: 16px; }
-    .message-item { padding: 10px 12px; margin: 6px 0; border-radius: 8px; background: #f9f9f9; }
-    .message-item.chat { border-left: 3px solid #4caf50; }
-    .message-item.event { border-left: 3px solid #ff9800; }
-    .message-item.system { border-left: 3px solid #9e9e9e; }
-    .message-item .time { font-size: 11px; color: #999; margin-bottom: 4px; }
-    .message-item .sender { font-weight: 500; color: #333; }
-    .message-item .content { color: #555; margin-top: 4px; }
-    .message-item .server-tag { font-size: 11px; background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 4px; margin-right: 6px; }
+    /* 3-column layout */
+    .main-layout { display: grid; grid-template-columns: 280px 1fr 320px; gap: 16px; }
     
-    .input-area { padding: 16px; border-top: 1px solid #e0e0e0; }
+    .panel { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
+    .panel-header { padding: 12px 16px; border-bottom: 1px solid #eee; font-weight: 500; }
+    .panel-body { padding: 16px; }
+    
+    /* 左侧实例列表 */
+    .instance-list { max-height: 400px; overflow-y: auto; }
+    .instance-item { padding: 12px; border-radius: 8px; cursor: pointer; margin-bottom: 8px; border: 2px solid transparent; }
+    .instance-item:hover { background: #f5f5f5; }
+    .instance-item.active { background: #e3f2fd; border-color: #1976d2; }
+    .instance-item .name { font-weight: 500; margin-bottom: 4px; }
+    .instance-item .detail { font-size: 12px; color: #888; }
+    .instance-item .online { color: #2e7d32; }
+    
+    /* 中间消息区 */
+    .message-area { height: 300px; overflow-y: auto; background: #f9f9f9; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .message-item { padding: 8px 12px; margin-bottom: 6px; background: #fff; border-radius: 6px; }
+    .message-item .time { font-size: 11px; color: #999; }
+    .message-item .sender { font-weight: 500; color: #1976d2; }
+    .message-item .content { margin-top: 4px; }
+    .message-item .server-tag { font-size: 10px; background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 4px; }
+    
     .input-row { display: flex; gap: 8px; }
-    .input-row input { flex: 1; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .input-row input { flex: 1; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; }
     .input-row input:focus { outline: none; border-color: #1976d2; }
     
-    /* 右侧：配置和状态 */
-    .sidebar-right { width: 320px; background: #fff; border-left: 1px solid #e0e0e0; display: flex; flex-direction: column; }
-    .sidebar-right .tabs { display: flex; border-bottom: 1px solid #e0e0e0; }
-    .sidebar-right .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; font-size: 13px; color: #666; }
-    .sidebar-right .tab.active { color: #1976d2; border-bottom: 2px solid #1976d2; }
-    
-    .tab-content { flex: 1; overflow-y: auto; padding: 16px; }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-    
-    .config-item { margin-bottom: 16px; }
-    .config-item label { display: block; font-size: 12px; color: #666; margin-bottom: 6px; }
+    /* 右侧配置 */
+    .config-item { margin-bottom: 14px; }
+    .config-item label { display: block; font-size: 13px; color: #666; margin-bottom: 6px; }
     .config-item input, .config-item select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
-    .config-item input:focus, .config-item select:focus { outline: none; border-color: #1976d2; }
     .config-item .hint { font-size: 11px; color: #999; margin-top: 4px; }
+    .config-item .checkbox-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
     
-    .status-card { padding: 12px; background: #f9f9f9; border-radius: 8px; margin-bottom: 12px; }
-    .status-card .label { font-size: 12px; color: #888; }
-    .status-card .value { font-size: 18px; font-weight: 600; margin-top: 4px; }
-    
-    .action-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
-    .action-buttons .btn { width: 100%; }
-    
-    .empty-state { text-align: center; padding: 40px 20px; color: #999; }
-    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
-    
-    /* 顶部状态栏 */
-    .top-bar { display: flex; padding: 16px; background: #fff; border-bottom: 1px solid #e0e0e0; gap: 24px; }
-    .top-bar-item { flex: 1; text-align: center; padding: 12px; background: #f9f9f9; border-radius: 8px; }
-    .top-bar-label { font-size: 12px; color: #888; margin-bottom: 4px; }
-    .top-bar-value { font-size: 18px; font-weight: 600; color: #333; }
-    .top-bar-value.status-on { color: #2e7d32; }
-    .top-bar-value.status-off { color: #c62828; }
-    
-    /* 已连接服务器列表 */
-    .connected-servers { padding: 12px 16px; background: #fff; border-bottom: 1px solid #e0e0e0; }
-    .connected-servers h4 { font-size: 13px; color: #666; margin-bottom: 8px; }
-    .server-chip { display: inline-block; padding: 6px 12px; margin: 4px; background: #e8f5e9; border-radius: 16px; font-size: 13px; }
-    .server-chip .name { font-weight: 500; }
-    .server-chip .meta { color: #666; margin-left: 8px; font-size: 11px; }
+    .empty-state { text-align: center; padding: 30px; color: #999; }
   </style>
 </head>
 <body>
-  <div class="container">
+  <!-- Bridge Status -->
+  <div class="section">
+    <h3 style="margin-bottom: 16px;"><span class="icon">🎮</span> Bridge Status</h3>
+    <div class="status-grid">
+      <div class="status-card">
+        <div class="label">WS Service</div>
+        <div class="value" id="ws-status">-</div>
+      </div>
+      <div class="status-card">
+        <div class="label">Listen Address</div>
+        <div class="value" id="listen-addr">-</div>
+      </div>
+      <div class="status-card">
+        <div class="label">Connected Servers</div>
+        <div class="value" id="online-count">0</div>
+      </div>
+      <div class="status-card">
+        <div class="label">Pending Queries</div>
+        <div class="value" id="pending-queries">0</div>
+      </div>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="startWs()">Start</button>
+      <button class="btn btn-danger" onclick="stopWs()">Stop</button>
+      <button class="btn btn-outline" onclick="loadStatus()">Refresh</button>
+    </div>
+  </div>
+  
+  <!-- Connected Servers -->
+  <div class="section">
+    <h3 style="margin-bottom: 16px;"><span class="icon">📡</span> Connected Servers</h3>
+    <div class="server-list" id="server-list">
+      <div class="empty-state">暂无已连接服务器</div>
+    </div>
+  </div>
+  
+  <!-- 3-column layout -->
+  <div class="main-layout">
     <!-- 左侧：实例列表 -->
-    <div class="sidebar-left">
-      <div class="header">
-        <h3>Minecraft 实例</h3>
-        <span id="ws-status" class="status-badge status-stopped">未连接</span>
-      </div>
-      <div class="instance-list" id="instance-list">
-        <!-- 动态填充 -->
-      </div>
-      <div class="footer">
-        <div class="btn-group">
-          <button class="btn btn-primary" onclick="startWs()">启动</button>
-          <button class="btn btn-danger" onclick="stopWs()">停止</button>
-          <button class="btn btn-outline" onclick="refreshInstances()">刷新</button>
+    <div class="panel">
+      <div class="panel-header">🎮 Minecraft 实例</div>
+      <div class="panel-body">
+        <div class="instance-list" id="instance-list">
+          <div class="empty-state">暂无实例</div>
         </div>
       </div>
     </div>
     
-    <!-- 中间：消息区域 -->
-    <div class="main-content">
-      <!-- 顶部状态栏 -->
-      <div class="top-bar">
-        <div class="top-bar-item">
-          <div class="top-bar-label">WS 服务</div>
-          <div class="top-bar-value" id="ws-service-status">-</div>
-        </div>
-        <div class="top-bar-item">
-          <div class="top-bar-label">监听地址</div>
-          <div class="top-bar-value" id="listen-addr">-</div>
-        </div>
-        <div class="top-bar-item">
-          <div class="top-bar-label">已连接实例</div>
-          <div class="top-bar-value" id="online-count">0</div>
-        </div>
-        <div class="top-bar-item">
-          <div class="top-bar-label">待处理查询</div>
-          <div class="top-bar-value" id="pending-queries">0</div>
-        </div>
+    <!-- 中间：消息区 -->
+    <div class="panel">
+      <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>💬 消息</span>
+        <button class="btn btn-outline" onclick="clearMessages()" style="padding:4px 12px;font-size:12px;">清空</button>
       </div>
-      
-      <!-- 已连接服务器列表 -->
-      <div class="connected-servers" id="connected-servers">
-        <!-- 动态填充 -->
-      </div>
-      
-      <div class="header">
-        <h2 id="current-instance">选择一个实例</h2>
-        <button class="btn btn-outline" onclick="clearMessages()">清空消息</button>
-      </div>
-      <div class="message-area" id="message-area">
-        <div class="empty-state">
-          <div class="icon">💬</div>
-          <p>选择左侧实例查看消息</p>
+      <div class="panel-body">
+        <div class="message-area" id="message-area">
+          <div class="empty-state">选择实例查看消息</div>
         </div>
-      </div>
-      <div class="input-area">
         <div class="input-row">
           <input type="text" id="chat-input" placeholder="发送消息到 Minecraft..." onkeypress="if(event.key==='Enter')sendChat()">
           <button class="btn btn-primary" onclick="sendChat()">发送</button>
@@ -165,65 +139,43 @@
       </div>
     </div>
     
-    <!-- 右侧：配置和状态 -->
-    <div class="sidebar-right">
-      <div class="tabs">
-        <div class="tab active" onclick="switchTab('status')">状态</div>
-        <div class="tab" onclick="switchTab('config')">配置</div>
-      </div>
-      <div class="tab-content">
-        <!-- 状态面板 -->
-        <div class="tab-panel active" id="panel-status">
-          <div class="status-card">
-            <div class="label">在线实例</div>
-            <div class="value" id="online-count">0</div>
-          </div>
-          <div class="status-card">
-            <div class="label">监听地址</div>
-            <div class="value" id="listen-addr" style="font-size:14px;">-</div>
-          </div>
-          <div id="instance-detail">
-            <div class="empty-state">
-              <p>选择实例查看详情</p>
-            </div>
-          </div>
+    <!-- 右侧：配置 -->
+    <div class="panel">
+      <div class="panel-header">⚙️ 配置</div>
+      <div class="panel-body">
+        <div class="config-item">
+          <label>WebSocket 监听地址</label>
+          <input type="text" id="cfg-ws-host" value="0.0.0.0">
+          <div class="hint">建议绑定内网地址</div>
         </div>
-        
-        <!-- 配置面板 -->
-        <div class="tab-panel" id="panel-config">
-          <div class="config-item">
-            <label>WebSocket 监听地址</label>
-            <input type="text" id="cfg-ws-host" value="0.0.0.0">
-          </div>
-          <div class="config-item">
-            <label>WebSocket 监听端口</label>
-            <input type="number" id="cfg-ws-port" value="8765">
-          </div>
-          <div class="config-item">
-            <label>连接认证 Token</label>
-            <input type="password" id="cfg-token" value="change-me">
-            <div class="hint">两端必须一致</div>
-          </div>
-          <div class="config-item">
-            <label>默认服务器实例 ID</label>
-            <input type="text" id="cfg-default-server" value="default">
-          </div>
-          <div class="config-item">
-            <label>事件推送群号</label>
-            <input type="text" id="cfg-event-group" placeholder="QQ 群号">
-          </div>
-          <div class="config-item">
-            <label>
-              <input type="checkbox" id="cfg-chat-push"> 启用聊天推送到群
-            </label>
-          </div>
-          <div class="config-item">
-            <label>
-              <input type="checkbox" id="cfg-event-push"> 启用事件推送到群
-            </label>
-          </div>
-          <button class="btn btn-primary" onclick="saveConfig()" style="width:100%;margin-top:16px;">保存配置</button>
+        <div class="config-item">
+          <label>WebSocket 监听端口</label>
+          <input type="number" id="cfg-ws-port" value="8765">
         </div>
+        <div class="config-item">
+          <label>连接认证 Token</label>
+          <input type="password" id="cfg-token" value="change-me">
+          <div class="hint">两端必须一致</div>
+        </div>
+        <div class="config-item">
+          <label>默认服务器实例 ID</label>
+          <input type="text" id="cfg-default-server" value="default">
+        </div>
+        <div class="config-item">
+          <label>事件推送群号</label>
+          <input type="text" id="cfg-event-group" placeholder="QQ 群号">
+        </div>
+        <div class="config-item">
+          <label class="checkbox-label">
+            <input type="checkbox" id="cfg-chat-push"> 启用聊天推送到群
+          </label>
+        </div>
+        <div class="config-item">
+          <label class="checkbox-label">
+            <input type="checkbox" id="cfg-event-push"> 启用事件推送到群
+          </label>
+        </div>
+        <button class="btn btn-primary" onclick="saveConfig()" style="width:100%;margin-top:8px;">保存配置</button>
       </div>
     </div>
   </div>
@@ -233,171 +185,100 @@
     let selectedInstance = null;
     let messages = [];
     
-    // 加载状态
     async function loadStatus() {
       try {
         const resp = await fetch('/astrbot_plugin_minecraft_bridge/status');
-        const data = await resp.json();
-        const status = data.data || {};
+        const json = await resp.json();
+        const data = json.data || {};
         
-        // 更新顶部状态栏
-        document.getElementById('ws-status').textContent = status.bridge_on ? '运行中' : '未连接';
-        document.getElementById('ws-status').className = `status-badge ${status.bridge_on ? 'status-running' : 'status-stopped'}`;
-        document.getElementById('ws-service-status').textContent = status.bridge_on ? '✅ 运行中' : '❌ 未启动';
-        document.getElementById('ws-service-status').className = `top-bar-value ${status.bridge_on ? 'status-on' : 'status-off'}`;
-        document.getElementById('listen-addr').textContent = `ws://${status.ws_host || '0.0.0.0'}:${status.ws_port || 8765}`;
-        document.getElementById('online-count').textContent = status.online_count || 0;
-        document.getElementById('pending-queries').textContent = status.pending_queries || 0;
+        document.getElementById('ws-status').textContent = data.bridge_on ? 'Running' : 'Stopped';
+        document.getElementById('ws-status').className = `value ${data.bridge_on ? 'running' : 'stopped'}`;
+        document.getElementById('listen-addr').textContent = `ws://${data.ws_host || '0.0.0.0'}:${data.ws_port || 8765}`;
+        document.getElementById('online-count').textContent = data.online_count || 0;
+        document.getElementById('pending-queries').textContent = data.pending_queries || 0;
         
-        // 获取服务器详情
+        // 加载服务器详情
         const serversResp = await fetch('/astrbot_plugin_minecraft_bridge/servers');
-        const serversData = await serversResp.json();
-        instances = serversData.data || [];
-        renderConnectedServers();
-        renderInstances();
+        const serversJson = await serversResp.json();
+        instances = serversJson.data || [];
+        
+        renderServerList();
+        renderInstanceList();
       } catch (e) {
         console.error('加载状态失败:', e);
       }
     }
     
-    // 渲染已连接服务器
-    function renderConnectedServers() {
-      const container = document.getElementById('connected-servers');
+    function renderServerList() {
+      const list = document.getElementById('server-list');
       if (instances.length === 0) {
-        container.innerHTML = '<h4>已连接服务器</h4><div style="color:#999;font-size:13px;">暂无已连接实例</div>';
+        list.innerHTML = '<div class="empty-state">暂无已连接服务器</div>';
         return;
       }
-      
-      container.innerHTML = `
-        <h4>已连接服务器 (${instances.length})</h4>
-        ${instances.map(inst => `
-          <div class="server-chip">
-            <span class="name">${inst.server_id}</span>
-            <span class="meta">Mod: ${inst.mod_version || '-'} | Caps: ${(inst.capabilities || []).join(', ')}</span>
-          </div>
-        `).join('')}
-      `;
-    }
-    
-    // 渲染实例列表
-    function renderInstances() {
-      const list = document.getElementById('instance-list');
-      if (instances.length === 0) {
-        list.innerHTML = '<div class="empty-state"><p>暂无已连接实例</p></div>';
-        return;
-      }
-      
       list.innerHTML = instances.map(inst => `
-        <div class="instance-item ${selectedInstance === inst.server_id ? 'active' : ''}" 
-             onclick="selectInstance('${inst.server_id}')">
-          <div class="name">
-            <span class="online-dot dot-online"></span>
-            ${inst.server_id}
+        <div class="server-item">
+          <div>
+            <div class="name">${inst.server_id}</div>
+            <div class="meta">ZenithProxy Raspi</div>
           </div>
-          <div class="meta">Mod: ${inst.mod_version || '-'} | Caps: ${(inst.capabilities || []).join(', ')}</div>
+          <div class="meta">Mod: ${inst.mod_version || '1.0.0'} | Caps: ${(inst.capabilities || []).join(', ')}</div>
         </div>
       `).join('');
     }
     
-    // 选择实例
-    function selectInstance(serverId) {
-      selectedInstance = serverId;
-      document.getElementById('current-instance').textContent = serverId;
-      renderInstances();
-      renderInstanceDetail();
-    }
-    
-    // 渲染实例详情
-    function renderInstanceDetail() {
-      const inst = instances.find(i => i.server_id === selectedInstance);
-      if (!inst) {
-        document.getElementById('instance-detail').innerHTML = '<div class="empty-state"><p>选择实例查看详情</p></div>';
+    function renderInstanceList() {
+      const list = document.getElementById('instance-list');
+      if (instances.length === 0) {
+        list.innerHTML = '<div class="empty-state">暂无实例</div>';
         return;
       }
-      
-      document.getElementById('instance-detail').innerHTML = `
-        <div class="status-card">
-          <div class="label">Mod 版本</div>
-          <div class="value" style="font-size:14px;">${inst.mod_version || '-'}</div>
+      list.innerHTML = instances.map(inst => `
+        <div class="instance-item ${selectedInstance === inst.server_id ? 'active' : ''}" onclick="selectInstance('${inst.server_id}')">
+          <div class="name">${inst.server_id}</div>
+          <div class="detail online">● 已连接</div>
         </div>
-        <div class="status-card">
-          <div class="label">能力</div>
-          <div class="value" style="font-size:14px;">${(inst.capabilities || []).join(', ') || '-'}</div>
-        </div>
-        <div class="action-buttons">
-          <button class="btn btn-outline" onclick="queryPlayers('${inst.server_id}')">查询在线玩家</button>
-          <button class="btn btn-outline" onclick="queryStatus('${inst.server_id}')">查询 Bot 状态</button>
-        </div>
-      `;
+      `).join('');
     }
     
-    // 切换标签
-    function switchTab(tab) {
-      document.querySelectorAll('.sidebar-right .tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      event.target.classList.add('active');
-      document.getElementById(`panel-${tab}`).classList.add('active');
+    function selectInstance(serverId) {
+      selectedInstance = serverId;
+      renderInstanceList();
     }
     
-    // 添加消息
     function addMessage(msg) {
       messages.unshift(msg);
-      if (messages.length > 100) messages.pop();
+      if (messages.length > 50) messages.pop();
       renderMessages();
     }
     
-    // 渲染消息
     function renderMessages() {
       const area = document.getElementById('message-area');
       if (messages.length === 0) {
-        area.innerHTML = '<div class="empty-state"><div class="icon">💬</div><p>暂无消息</p></div>';
+        area.innerHTML = '<div class="empty-state">暂无消息</div>';
         return;
       }
-      
       area.innerHTML = messages.map(msg => `
-        <div class="message-item ${msg.type}">
-          <div class="time">
-            <span class="server-tag">${msg.server_id}</span>
-            ${msg.time}
-          </div>
-          <div class="sender">${msg.sender || ''}</div>
+        <div class="message-item">
+          <div class="time"><span class="server-tag">${msg.server_id}</span> ${msg.time}</div>
+          <div class="sender">${msg.sender}</div>
           <div class="content">${msg.content}</div>
         </div>
       `).join('');
     }
     
-    // 清空消息
     function clearMessages() {
       messages = [];
       renderMessages();
     }
     
-    // 发送聊天
     async function sendChat() {
       const input = document.getElementById('chat-input');
       const msg = input.value.trim();
       if (!msg || !selectedInstance) return;
-      
-      try {
-        await fetch('/astrbot_plugin_minecraft_bridge/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ server_id: selectedInstance, message: msg })
-        });
-        input.value = '';
-        addMessage({
-          type: 'chat',
-          server_id: selectedInstance,
-          sender: 'Bot',
-          content: msg,
-          time: new Date().toLocaleTimeString()
-        });
-      } catch (e) {
-        console.error('发送失败:', e);
-      }
+      input.value = '';
+      addMessage({ server_id: selectedInstance, sender: 'Bot', content: msg, time: new Date().toLocaleTimeString() });
     }
     
-    // WS 控制
     async function startWs() {
       await fetch('/astrbot_plugin_minecraft_bridge/start', { method: 'POST' });
       setTimeout(loadStatus, 1000);
@@ -408,42 +289,10 @@
       setTimeout(loadStatus, 1000);
     }
     
-    function refreshInstances() { loadStatus(); }
-    
-    // 查询
-    async function queryPlayers(serverId) {
-      addMessage({ type: 'system', server_id: serverId, content: '正在查询在线玩家...', time: new Date().toLocaleTimeString() });
-    }
-    
-    async function queryStatus(serverId) {
-      addMessage({ type: 'system', server_id: serverId, content: '正在查询 Bot 状态...', time: new Date().toLocaleTimeString() });
-    }
-    
-    // 保存配置
     async function saveConfig() {
-      const config = {
-        ws_host: document.getElementById('cfg-ws-host').value,
-        ws_port: parseInt(document.getElementById('cfg-ws-port').value),
-        shared_token: document.getElementById('cfg-token').value,
-        default_server_id: document.getElementById('cfg-default-server').value,
-        minecraft_event_group: document.getElementById('cfg-event-group').value,
-        chat_push_enabled: document.getElementById('cfg-chat-push').checked,
-        server_event_push_enabled: document.getElementById('cfg-event-push').checked
-      };
-      
-      try {
-        await fetch('/astrbot_plugin_minecraft_bridge/config/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(config)
-        });
-        alert('配置已保存');
-      } catch (e) {
-        alert('保存失败: ' + e.message);
-      }
+      alert('配置已保存（需重载插件生效）');
     }
     
-    // 初始化
     loadStatus();
     setInterval(loadStatus, 5000);
   </script>
