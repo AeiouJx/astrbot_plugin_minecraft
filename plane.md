@@ -226,6 +226,34 @@
 | `rpc_timeout` | `10` | RPC 超时秒数 |
 | `group_id_prefix` | `minecraft` | 虚拟群 ID 前缀 |
 | `bridge_on` | `false` | 插件加载时自动启动 WS 服务 |
+| `chat_push_enabled` | `false` | 将 Minecraft 玩家聊天推送到 QQ 群 |
+| `server_event_push_enabled` | `false` | 将玩家上下线、死亡、成就等事件推送到 QQ 群 |
+| `minecraft_event_group` | `""` | 事件推送目标 QQ 群号 |
+
+### 4.2 事件 → QQ 群映射
+
+Minecraft 事件通过 AstrBot 的 `context.send_message()` 推送到配置的 QQ 群。
+
+**目标群确定方式**：
+- 固定群号：配置 `minecraft_event_group` 为 QQ 群号（如 `860647561`）
+- 内部转换为 UMOP 格式：`aiocqhttp:group:{group_id}`
+
+**消息格式**：
+
+| 事件类型 | QQ 群消息格式 |
+|---|---|
+| `chat` | `[server_id] 玩家名: 消息内容` |
+| `whisper` | `[server_id] 玩家名 -> 目标: 消息内容` |
+| `player_join` | `[server_id] 玩家 玩家名 加入了游戏` |
+| `player_leave` | `[server_id] 玩家 玩家名 离开了游戏` |
+| `death` | `[server_id] Bot 死亡了` |
+| `achievement` | `[server_id] 玩家 玩家名 达成了成就: 成就名` |
+| `system` | `[server_id] 系统: 消息内容` |
+
+**注意**：
+- `chat` 事件需要 `chat_push_enabled=true`
+- 其他事件需要 `server_event_push_enabled=true`
+- `whisper` 事件目前推送到群，未来可能支持推送到私聊
 
 ## 5. AI 工具清单
 
