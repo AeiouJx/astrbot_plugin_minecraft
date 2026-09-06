@@ -1,6 +1,18 @@
-name: helloworld # 插件唯一识别名，以 astrbot_plugin_ 前缀开头
-display_name: helloworld # 用于展示的名字，可以是方便人类阅读的名字（需要版本 >= v4.5.0，低版本不会报错，请放心填写）
-desc: AstrBot 插件示例。 # 插件简短描述
-version: v1.3.0 # 插件版本号。格式：v1.1.1 或者 v1.1
-author: Soulter # 作者
-repo: https://github.com/Soulter/helloworld # 插件的仓库地址
+name: astrbot_plugin_minecraft_bridge # 插件唯一识别名，以 astrbot_plugin_ 前缀开头
+display_name: Minecraft Bridge # 用于展示的名字
+short_desc: ZenithProxy Minecraft 与 AstrBot 双向消息桥 + AI 控制
+desc: |
+  通过 WebSocket 将 ZenithProxy (Minecraft) 与 AstrBot 深度集成。
+  支持游戏事件上报、QQ 群聊下发动指令、AI 工具调用控制游戏 Bot。
+
+  功能特性：
+  - WebSocket 全双工通信 (Bearer Token 鉴权)
+  - Minecraft 聊天/状态事件推送到 QQ
+  - QQ 消息下发到游戏 Bot 发言
+  - 8 个 AI 工具：查询状态/玩家/背包/实体、移动、攻击、发言
+  - 多实例支持 (server_id 路由)
+version: v0.1.0 # 插件版本号
+author: PearlLoader # 作者
+repo: https://github.com/PearlLoader/astrbot_plugin_minecraft_bridge # 插件的仓库地址
+support_platforms:
+  - minecraft

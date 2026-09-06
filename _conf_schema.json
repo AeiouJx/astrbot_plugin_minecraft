@@ -1,0 +1,56 @@
+{
+    "ws_host": {
+        "description": "WebSocket 监听地址",
+        "type": "string",
+        "default": "0.0.0.0",
+        "hint": "建议绑定内网地址，如 0.0.0.0 或局域网 IP"
+    },
+    "ws_port": {
+        "description": "WebSocket 监听端口",
+        "type": "int",
+        "default": 8765,
+        "hint": "与 ZenithProxy 插件 bridge.wsPort 一致"
+    },
+    "ws_path": {
+        "description": "WebSocket 路径",
+        "type": "string",
+        "default": "/ws"
+    },
+    "shared_token": {
+        "description": "共享鉴权 Token",
+        "type": "string",
+        "secret": true,
+        "default": "change-me",
+        "hint": "两端需一致，必须修改默认值！与 Java 端 bridge.sharedToken 保持一致"
+    },
+    "default_server_id": {
+        "description": "默认服务器实例 ID",
+        "type": "string",
+        "default": "default",
+        "hint": "AI 工具未指定 server 时的默认实例"
+    },
+    "heartbeat_timeout": {
+        "description": "心跳超时秒数",
+        "type": "int",
+        "default": 15,
+        "hint": "超过该时间未收到消息判定离线"
+    },
+    "rpc_timeout": {
+        "description": "task/query 等待结果超时秒数",
+        "type": "int",
+        "default": 10,
+        "hint": "RPC 请求超过该时间未返回则报超时错误"
+    },
+    "group_id_prefix": {
+        "description": "虚拟群 ID 前缀",
+        "type": "string",
+        "default": "minecraft",
+        "hint": "生成的虚拟群 ID 格式为 {prefix}:{server_id}"
+    },
+    "bridge_on": {
+        "description": "启用 WebSocket 服务",
+        "type": "bool",
+        "default": false,
+        "hint": "插件启动时自动开启 WS 服务（需先在游戏端配置好）"
+    }
+}

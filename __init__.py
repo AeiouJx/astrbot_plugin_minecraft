@@ -1,0 +1,1 @@
+"""astrbot_plugin_minecraft_bridge 插件包。"""

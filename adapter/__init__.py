@@ -1,0 +1,1 @@
+"""adapter 包 - minecraft 虚拟平台适配器。"""
