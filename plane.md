@@ -87,6 +87,7 @@
 | `query` | S→G | 请求实时数据 |
 | `task_result` | G→S | 任务执行结果 |
 | `query_result` | G→S | 查询结果 |
+| `update_info` / `update_info_ack` | G→S / S→G | 实时更新客户端信息（如 server_id） |
 
 ### 3.4 客户端 → 服务端（游戏 → AstrBot）
 
@@ -117,6 +118,32 @@
 | `player_leave` | `player`(str) | 玩家离开 |
 | `bot_status` | `status`(str), `health`(float), `food`(int), `position`{x,y,z} | Bot 状态 |
 | `death` | - | Bot 死亡 |
+| `achievement` | `player`(str), `achievement`(str) | 玩家达成公开成就 |
+
+**update_info**（实时更新客户端信息）
+
+客户端可以在连接后随时发送 `update_info` 更新 server_id 等信息，无需断开重连：
+
+```json
+{
+  "type": "update_info",
+  "server_id": "AMineCat",
+  "mod_version": "1.0.0",
+  "capabilities": ["chat", "whisper", "query", "task"]
+}
+```
+
+服务端回复 `update_info_ack`：
+
+```json
+{
+  "type": "update_info_ack",
+  "server_id": "AMineCat",
+  "timestamp": 1693123456
+}
+```
+
+> **注意**：`update_info` 会触发服务端重新注册连接，旧的 server_id 会被移除，新的 server_id 会加入注册表。
 
 **task_result**
 ```json
