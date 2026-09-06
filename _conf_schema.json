@@ -69,6 +69,12 @@
         "default": [],
         "hint": "这些群无法使用 Minecraft Bridge 命令（优先级高于白名单）"
     },
+    "blocked_users": {
+        "description": "用户黑名单",
+        "type": "list",
+        "default": [],
+        "hint": "黑名单中的用户发送的消息不会被处理"
+    },
     "server_event_push_enabled": {
         "description": "启用 Minecraft 事件推送",
         "type": "bool",

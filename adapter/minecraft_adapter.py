@@ -136,6 +136,11 @@ CONFIG_METADATA = {
         "hint": "AI 可围绕高层目标持续行动和搭话（Mod 端也必须同时启用）",
         "type": "bool",
     },
+    "blocked_users": {
+        "description": "用户黑名单",
+        "hint": "黑名单中的用户发送的消息不会被处理",
+        "type": "list",
+    },
 }
 
 
@@ -321,6 +326,11 @@ def _register_adapter():
             if not message:
                 return None
 
+            # 检查用户黑名单
+            if self._is_blocked_user(sender):
+                logger.debug(f"忽略黑名单用户 {sender} 的消息")
+                return None
+
             # 入站消息长度限制
             max_len = int(self.bridge.config.get("inbound_max_message_length", 1000))
             if max_len > 0 and len(message) > max_len:
@@ -370,6 +380,33 @@ def _register_adapter():
         def _group_id(self, server_id: str) -> str:
             prefix = self.bridge.config.get("group_id_prefix", "minecraft")
             return f"{prefix}:{server_id}"
+
+        def _is_blocked_user(self, user_id: str) -> bool:
+            """检查用户是否在黑名单中。"""
+            blocked_users = self.bridge.config.get("blocked_users", [])
+            if not blocked_users:
+                return False
+            return str(user_id) in [str(u) for u in blocked_users]
+
+        def _is_group_blocked(self, group_id: str) -> bool:
+            """检查群是否在禁止列表中。"""
+            blocked_groups = self.bridge.config.get("blocked_groups", [])
+            if blocked_groups and group_id in blocked_groups:
+                return True
+            allowed_groups = self.bridge.config.get("allowed_groups", [])
+            if allowed_groups and group_id not in allowed_groups:
+                return True
+            return False
+
+        def _guard(self, user_id: str, group_id: str = None) -> bool:
+            """权限守卫：检查用户和群是否被允许。返回 True 表示允许。"""
+            if self._is_blocked_user(user_id):
+                logger.debug(f"用户 {user_id} 在黑名单中，忽略")
+                return False
+            if group_id and self._is_group_blocked(group_id):
+                logger.debug(f"群 {group_id} 不在白名单或在黑名单中，忽略")
+                return False
+            return True
 
         def _is_duplicate(self, item: dict) -> bool:
             """防循环去重：同一 server_id + sender + message + 时间窗内丢弃。"""
