@@ -154,6 +154,7 @@ class MinecraftBridgePlugin(Star):
             if self._bridge_on:
                 return json_response({"status": "ok", "message": "WS 服务已在运行"})
             self._bridge_on = True
+            self.config["bridge_on"] = True
             self.bridge.start()
             return json_response({"status": "ok", "message": "WS 服务已启动"})
         except Exception as e:
@@ -167,6 +168,7 @@ class MinecraftBridgePlugin(Star):
             if not self._bridge_on:
                 return json_response({"status": "ok", "message": "WS 服务未在运行"})
             self._bridge_on = False
+            self.config["bridge_on"] = False
             await self.bridge.stop()
             return json_response({"status": "ok", "message": "WS 服务已停止"})
         except Exception as e:
@@ -286,10 +288,12 @@ class MinecraftBridgePlugin(Star):
 
         if op == "on":
             self._bridge_on = True
+            self.config["bridge_on"] = True
             self.bridge.start()
             yield event.plain_result("✅ WS 桥接服务已启动")
         elif op == "off":
             self._bridge_on = False
+            self.config["bridge_on"] = False
             await self.bridge.stop()
             yield event.plain_result("🛑 WS 桥接服务已停止")
         elif op == "list":
