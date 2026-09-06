@@ -238,19 +238,21 @@
       try {
         const resp = await fetch('/astrbot_plugin_minecraft_bridge/status');
         const data = await resp.json();
-        const status = data.status || data;
+        const status = data.data || {};
         
         // 更新顶部状态栏
-        document.getElementById('ws-status').textContent = status.ws_running ? '运行中' : '未连接';
-        document.getElementById('ws-status').className = `status-badge ${status.ws_running ? 'status-running' : 'status-stopped'}`;
-        document.getElementById('ws-service-status').textContent = status.ws_running ? '✅ 运行中' : '❌ 未启动';
-        document.getElementById('ws-service-status').className = `top-bar-value ${status.ws_running ? 'status-on' : 'status-off'}`;
+        document.getElementById('ws-status').textContent = status.bridge_on ? '运行中' : '未连接';
+        document.getElementById('ws-status').className = `status-badge ${status.bridge_on ? 'status-running' : 'status-stopped'}`;
+        document.getElementById('ws-service-status').textContent = status.bridge_on ? '✅ 运行中' : '❌ 未启动';
+        document.getElementById('ws-service-status').className = `top-bar-value ${status.bridge_on ? 'status-on' : 'status-off'}`;
         document.getElementById('listen-addr').textContent = `ws://${status.ws_host || '0.0.0.0'}:${status.ws_port || 8765}`;
         document.getElementById('online-count').textContent = status.online_count || 0;
         document.getElementById('pending-queries').textContent = status.pending_queries || 0;
         
-        // 更新已连接服务器列表
-        instances = status.servers || [];
+        // 获取服务器详情
+        const serversResp = await fetch('/astrbot_plugin_minecraft_bridge/servers');
+        const serversData = await serversResp.json();
+        instances = serversData.data || [];
         renderConnectedServers();
         renderInstances();
       } catch (e) {
