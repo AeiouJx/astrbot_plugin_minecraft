@@ -54,6 +54,7 @@ class MinecraftBridgePlugin(Star):
         self.config = config or {}
         logger.info(f"MinecraftBridgePlugin.__init__: config keys={list(self.config.keys())}, ws_host={self.config.get('ws_host')!r}")
         self.bridge = BridgeManager.configure(dict(self.config))
+        self.bridge.context = context  # 传递 context 给 BridgeManager 供 LLM 调用
 
         # 导入平台适配器模块以触发注册（仅首次）
         from .adapter import _ensure_registered

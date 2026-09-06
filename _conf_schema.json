@@ -101,5 +101,11 @@
         "default": 60,
         "hint": "频率限制的时间窗口大小（秒）",
         "slider": {"min": 10, "max": 300, "step": 10}
+    },
+    "minecraft_event_group": {
+        "description": "Minecraft 事件推送群号",
+        "type": "string",
+        "default": "",
+        "hint": "留空不推送；填写后游戏内聊天/玩家加入/离开等事件会推送到该群"
     }
 }

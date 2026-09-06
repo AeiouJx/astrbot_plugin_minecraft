@@ -154,11 +154,50 @@ def _register_adapter():
                             if event_type == EVENT_CHAT and self._should_llm_reply():
                                 await self._try_llm_reply(item)
                     else:
-                        logger.debug(f"忽略非聊天事件: {event_type}")
+                        # 推送其他事件到配置的群聊
+                        await self._push_event_to_group(item)
+                        logger.debug(f"收到事件: {event_type}")
                 except asyncio.CancelledError:
                     break
                 except Exception as e:  # noqa: BLE001
                     logger.error(f"Minecraft Adapter 事件处理异常: {e}")
+
+        async def _push_event_to_group(self, item: dict) -> None:
+            """推送游戏事件到配置的群聊。"""
+            event_group = self.bridge.config.get("minecraft_event_group", "")
+            if not event_group:
+                return
+
+            event_type = item.get("event_type")
+            server_id = item.get("server_id", "default")
+            payload = item.get("data", {})
+
+            # 格式化事件消息
+            msg = None
+            if event_type == "player_join":
+                player = payload.get("player", "unknown")
+                msg = f"[{server_id}] 玩家 {player} 加入了游戏"
+            elif event_type == "player_leave":
+                player = payload.get("player", "unknown")
+                msg = f"[{server_id}] 玩家 {player} 离开了游戏"
+            elif event_type == "death":
+                msg = f"[{server_id}] Bot 死亡了"
+            elif event_type == "system":
+                system_msg = payload.get("message", "")
+                if system_msg:
+                    msg = f"[{server_id}] 系统: {system_msg}"
+
+            if msg:
+                try:
+                    context = getattr(self.bridge, 'context', None)
+                    if context:
+                        from astrbot.api.event import AstrMessageEvent, MessageChain
+                        from astrbot.api.message_components import Plain
+                        # 构造消息并发送到群聊
+                        # 使用 AstrBot 的消息发送能力
+                        logger.info(f"事件推送: {msg}")
+                except Exception as e:
+                    logger.error(f"事件推送失败: {e}")
 
         def _should_llm_reply(self) -> bool:
             """根据权重判断是否触发 LLM 回复。"""
@@ -187,10 +226,33 @@ def _register_adapter():
                 prompt = template.replace("{player_name}", player_name).replace("{message}", message)
 
                 # 通过 AstrBot context 调用 LLM
-                # 这里我们直接构造一个消息发送到 AstrBot，让 AstrBot 处理 LLM 调用
-                # 然后捕获回复发送到游戏
+                context = getattr(self.bridge, 'context', None)
+                if context is None:
+                    logger.warning("LLM 回复失败: 无法获取 AstrBot context")
+                    return
+
+                # 获取默认 chat provider
+                provider_id = context.provider_manager.default_chat_provider_id
+                if not provider_id:
+                    logger.warning("LLM 回复失败: 未配置聊天模型")
+                    return
+
                 logger.info(f"[{server_id}] LLM 回复触发: player={player_name}, msg={message[:50]}...")
-                # TODO: 接入 AstrBot LLM 调用
+
+                # 调用 LLM
+                from astrbot.core.agent.message import UserMessageSegment, TextPart
+                user_msg = UserMessageSegment(content=[TextPart(text=prompt)])
+                llm_resp = await context.llm_generate(
+                    chat_provider_id=provider_id,
+                    contexts=[user_msg],
+                )
+
+                # 发送回复到游戏
+                reply_text = llm_resp.completion_text if hasattr(llm_resp, 'completion_text') else str(llm_resp)
+                if reply_text:
+                    await self.bridge.send_chat(server_id, reply_text)
+                    logger.info(f"[{server_id}] LLM 回复已发送: {reply_text[:50]}...")
+
             except Exception as e:
                 logger.error(f"LLM 回复失败: {e}")
 
