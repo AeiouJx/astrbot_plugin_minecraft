@@ -72,8 +72,8 @@ CONFIG_METADATA = {
         "type": "string",
     },
     "bridge_on": {
-        "description": "启用 WebSocket 服务",
-        "hint": "插件启动时自动开启 WS 服务（需先配置好 Minecraft 端）",
+        "description": "开机自启 WS 服务",
+        "hint": "插件加载时自动启动 WebSocket 服务（运行中可用 Dashboard 按钮临时启停）",
         "type": "bool",
     },
 }

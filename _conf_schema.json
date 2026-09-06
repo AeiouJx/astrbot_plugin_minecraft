@@ -52,9 +52,9 @@
         "hint": "生成格式: {prefix}:{server_id}，一般不需要修改"
     },
     "bridge_on": {
-        "description": "启用 WebSocket 服务",
+        "description": "开机自启 WS 服务",
         "type": "bool",
         "default": false,
-        "hint": "插件启动时自动开启 WS 服务（需先配置好 Minecraft 端）"
+        "hint": "插件加载时自动启动 WebSocket 服务（运行中可用 Dashboard 按钮临时启停）"
     }
 }
