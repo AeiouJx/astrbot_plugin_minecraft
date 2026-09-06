@@ -193,9 +193,9 @@ def _register_adapter():
                             # LLM 自动回复
                             if event_type == EVENT_CHAT and self._should_llm_reply():
                                 await self._try_llm_reply(item)
-                    else:
-                        # 事件推送到配置的群聊
-                        await self._push_event_to_group(item)
+                    # 所有事件都尝试推送到群（包括聊天）
+                    await self._push_event_to_group(item)
+                    if event_type not in (EVENT_CHAT, EVENT_WHISPER):
                         logger.debug(f"收到事件: {event_type}")
                 except asyncio.CancelledError:
                     break
