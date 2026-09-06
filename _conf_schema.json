@@ -19,7 +19,7 @@
         "hint": "默认 /ws，两端需一致"
     },
     "shared_token": {
-        "description": "共享鉴权 Token",
+        "description": "连接认证 Token",
         "type": "string",
         "secret": true,
         "default": "change-me",
@@ -69,6 +69,32 @@
         "default": [],
         "hint": "这些群无法使用 Minecraft Bridge 命令（优先级高于白名单）"
     },
+    "server_event_push_enabled": {
+        "description": "启用 Minecraft 事件推送",
+        "type": "bool",
+        "default": false,
+        "hint": "接收并投递 Mod 发来的玩家上下线、死亡和公开成就事件"
+    },
+    "minecraft_event_group": {
+        "description": "Minecraft 事件推送群号",
+        "type": "string",
+        "default": "",
+        "hint": "留空不推送；填写后游戏事件会推送到该群"
+    },
+    "inbound_max_message_length": {
+        "description": "入站消息最大长度",
+        "type": "int",
+        "default": 1000,
+        "hint": "单条 Minecraft 消息转发到 AstrBot 前允许的最大长度，超出部分会被截断",
+        "slider": {"min": 100, "max": 5000, "step": 100}
+    },
+    "outbound_max_message_length": {
+        "description": "出站消息最大长度",
+        "type": "int",
+        "default": 2000,
+        "hint": "AstrBot 回复广播到 Minecraft 前允许的最大长度，超出部分会被截断，避免刷屏",
+        "slider": {"min": 100, "max": 5000, "step": 100}
+    },
     "llm_reply_enabled": {
         "description": "启用 LLM 自动回复",
         "type": "bool",
@@ -79,7 +105,7 @@
         "description": "LLM 回复触发权重",
         "type": "int",
         "default": 1,
-        "hint": "触发概率 = 本权重 / 所有权重之和。权重越高越容易触发 LLM 回复",
+        "hint": "触发概率 = 权重 / 10。权重越高越容易触发 LLM 回复",
         "slider": {"min": 0, "max": 10, "step": 1}
     },
     "llm_prompt_template": {
@@ -102,10 +128,11 @@
         "hint": "频率限制的时间窗口大小（秒）",
         "slider": {"min": 10, "max": 300, "step": 10}
     },
-    "minecraft_event_group": {
-        "description": "Minecraft 事件推送群号",
-        "type": "string",
-        "default": "",
-        "hint": "留空不推送；填写后游戏内聊天/玩家加入/离开等事件会推送到该群"
+    "ai_companion_enabled": {
+        "description": "启用 AI 陪伴模式",
+        "type": "bool",
+        "default": false,
+        "hint": "AI 可围绕高层目标持续行动和搭话（Mod 端也必须同时启用）"
     }
+}
 }

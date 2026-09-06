@@ -31,6 +31,7 @@ EVENT_PLAYER_JOIN = "player_join"
 EVENT_PLAYER_LEAVE = "player_leave"
 EVENT_BOT_STATUS = "bot_status"
 EVENT_DEATH = "death"
+EVENT_ACHIEVEMENT = "achievement"
 
 # ---- 任务动作（S->G）----
 ACTION_SEND_CHAT = "send_chat"

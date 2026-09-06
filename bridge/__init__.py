@@ -88,7 +88,11 @@ class BridgeManager:
         return await self.registry.send_task(server_id, action, params, timeout or self.rpc_timeout)
 
     async def send_chat(self, server_id: str, message: str) -> None:
-        """bot 发送公共聊天（fire-and-forget），带频率限制。"""
+        """bot 发送公共聊天（fire-and-forget），带频率限制和消息长度限制。"""
+        # 出站消息长度限制
+        max_len = int(self.config.get("outbound_max_message_length", 2000))
+        if max_len > 0 and len(message) > max_len:
+            message = message[:max_len] + "..."
         # 检查频率限制
         rate_limit = int(self.config.get("chat_rate_limit", 0))
         if rate_limit > 0:

@@ -46,7 +46,7 @@ CONFIG_METADATA = {
         "type": "string",
     },
     "shared_token": {
-        "description": "共享鉴权 Token",
+        "description": "连接认证 Token",
         "hint": "两端必须完全一致，建议改为随机字符串，勿使用默认值",
         "type": "string",
         "secret": True,
@@ -86,6 +86,26 @@ CONFIG_METADATA = {
         "hint": "这些群无法使用 Minecraft Bridge 命令（优先级高于白名单）",
         "type": "list",
     },
+    "server_event_push_enabled": {
+        "description": "启用 Minecraft 事件推送",
+        "hint": "接收并投递 Mod 发来的玩家上下线、死亡和公开成就事件",
+        "type": "bool",
+    },
+    "minecraft_event_group": {
+        "description": "Minecraft 事件推送群号",
+        "hint": "留空不推送；填写后游戏事件会推送到该群",
+        "type": "string",
+    },
+    "inbound_max_message_length": {
+        "description": "入站消息最大长度",
+        "hint": "单条 Minecraft 消息转发到 AstrBot 前允许的最大长度，超出部分会被截断",
+        "type": "int",
+    },
+    "outbound_max_message_length": {
+        "description": "出站消息最大长度",
+        "hint": "AstrBot 回复广播到 Minecraft 前允许的最大长度，超出部分会被截断",
+        "type": "int",
+    },
     "llm_reply_enabled": {
         "description": "启用 LLM 自动回复",
         "hint": "开启后，游戏内玩家聊天会触发 AI 自动回复",
@@ -100,6 +120,21 @@ CONFIG_METADATA = {
         "description": "LLM 回复提示模板",
         "hint": "支持变量: {player_name} = 发言玩家名, {message} = 消息内容",
         "type": "text",
+    },
+    "chat_rate_limit": {
+        "description": "发言频率限制",
+        "hint": "每个时间窗口内最多发送的消息数量（0=不限制）",
+        "type": "int",
+    },
+    "chat_rate_window": {
+        "description": "发言频率窗口（秒）",
+        "hint": "频率限制的时间窗口大小（秒）",
+        "type": "int",
+    },
+    "ai_companion_enabled": {
+        "description": "启用 AI 陪伴模式",
+        "hint": "AI 可围绕高层目标持续行动和搭话（Mod 端也必须同时启用）",
+        "type": "bool",
     },
 }
 
@@ -154,7 +189,7 @@ def _register_adapter():
                             if event_type == EVENT_CHAT and self._should_llm_reply():
                                 await self._try_llm_reply(item)
                     else:
-                        # 推送其他事件到配置的群聊
+                        # 事件推送到配置的群聊
                         await self._push_event_to_group(item)
                         logger.debug(f"收到事件: {event_type}")
                 except asyncio.CancelledError:
@@ -164,6 +199,9 @@ def _register_adapter():
 
         async def _push_event_to_group(self, item: dict) -> None:
             """推送游戏事件到配置的群聊。"""
+            if not self.bridge.config.get("server_event_push_enabled", False):
+                return
+
             event_group = self.bridge.config.get("minecraft_event_group", "")
             if not event_group:
                 return
@@ -182,6 +220,10 @@ def _register_adapter():
                 msg = f"[{server_id}] 玩家 {player} 离开了游戏"
             elif event_type == "death":
                 msg = f"[{server_id}] Bot 死亡了"
+            elif event_type == "achievement":
+                player = payload.get("player", "unknown")
+                achievement = payload.get("achievement", "未知成就")
+                msg = f"[{server_id}] 玩家 {player} 达成了成就: {achievement}"
             elif event_type == "system":
                 system_msg = payload.get("message", "")
                 if system_msg:
@@ -278,6 +320,11 @@ def _register_adapter():
 
             if not message:
                 return None
+
+            # 入站消息长度限制
+            max_len = int(self.bridge.config.get("inbound_max_message_length", 1000))
+            if max_len > 0 and len(message) > max_len:
+                message = message[:max_len] + "..."
 
             abm = AstrBotMessage()
             abm.type = MessageType.GROUP_MESSAGE
