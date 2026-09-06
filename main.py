@@ -215,6 +215,11 @@ class MinecraftBridgePlugin(Star):
             self.bridge.rpc_timeout = float(self.config.get("rpc_timeout", 10))
             self.bridge.ws_server.apply_config(self.config)
 
+            # 如果 WS 服务正在运行，重启以应用新配置
+            if self._bridge_on and self.bridge.started:
+                await self.bridge.stop()
+                self.bridge.start()
+
             return json_response({"status": "ok", "message": "Config saved"})
         except Exception as e:
             from astrbot.api.web import error_response

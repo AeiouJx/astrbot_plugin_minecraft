@@ -47,12 +47,20 @@ class WSServer:
     def start(self) -> None:
         """在事件循环中启动 WS 服务（非阻塞启动后台任务）。"""
         if self._runner is not None:
-            logger.warning("WS 服务已在运行")
+            # 已在运行，先停止再用新配置重启
+            asyncio.create_task(self._restart())
             return
         self._task = asyncio.create_task(self._run())
         # 同时启动心跳监控
         asyncio.create_task(self.registry.monitor())
         logger.info(f"WS 服务正在启动: ws://{self.host}:{self.port}{self.path}")
+
+    async def _restart(self) -> None:
+        """重启 WS 服务（应用新配置）。"""
+        logger.info("WS 服务正在重启...")
+        await self.stop()
+        self._task = asyncio.create_task(self._run())
+        asyncio.create_task(self.registry.monitor())
 
     async def stop(self) -> None:
         """停止 WS 服务。"""
