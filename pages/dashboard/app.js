@@ -3,6 +3,7 @@ const instances = [];
 let selectedInstance = null;
 const messages = [];
 let sseSubscriptionId = null;
+let instancePushConfig = {};
 
 async function loadStatus() {
   try {
@@ -20,6 +21,7 @@ async function loadStatus() {
     if (sd && sd.servers) sd.servers.forEach(function(s) { instances.push(s); });
     renderServerList();
     renderInstanceList();
+    renderPushConfig();
   } catch (e) {
     console.error('[mcbridge] loadStatus error:', e);
   }
@@ -31,9 +33,21 @@ function renderServerList() {
     list.innerHTML = '<div class="empty-state">暂无已连接服务器</div>';
     return;
   }
+  const defaultServer = document.getElementById('cfg-default-server').value;
   list.innerHTML = instances.map(function(inst) {
-    return '<div class="server-item"><div><div class="name">' + inst.server_id + '</div><div class="meta">ZenithProxy</div></div><div class="meta">Mod: ' + (inst.mod_version || '?') + ' | Caps: ' + (inst.capabilities || []).join(', ') + '</div></div>';
+    const isDefault = inst.server_id === defaultServer;
+    const defaultBtn = isDefault
+      ? '<span class="default-badge">默认</span>'
+      : '<button class="btn btn-outline btn-sm btn-set-default" data-id="' + inst.server_id + '">设为默认</button>';
+    return '<div class="server-item"><div class="info"><div class="name">' + inst.server_id + '</div><div class="meta">ZenithProxy</div></div><div style="display:flex;align-items:center;gap:12px;"><div class="meta">Mod: ' + (inst.mod_version || '?') + ' | Caps: ' + (inst.capabilities || []).join(', ') + '</div>' + defaultBtn + '</div></div>';
   }).join('');
+
+  list.querySelectorAll('.btn-set-default').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.getElementById('cfg-default-server').value = btn.getAttribute('data-id');
+      renderServerList();
+    });
+  });
 }
 
 function renderInstanceList() {
@@ -43,7 +57,6 @@ function renderInstanceList() {
     selectedInstance = null;
     return;
   }
-  // 默认选中第一个
   if (!selectedInstance || !instances.some(function(i) { return i.server_id === selectedInstance; })) {
     selectedInstance = instances[0].server_id;
   }
@@ -57,6 +70,36 @@ function renderInstanceList() {
       selectedInstance = el.getAttribute('data-id');
       renderInstanceList();
       renderMessages();
+    });
+  });
+}
+
+function renderPushConfig() {
+  const container = document.getElementById('push-config-list');
+  if (instances.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="padding:16px;">连接实例后可配置推送</div>';
+    return;
+  }
+  container.innerHTML = instances.map(function(inst) {
+    const sid = inst.server_id;
+    const cfg = instancePushConfig[sid] || {};
+    const chatChecked = cfg.chat_push ? 'checked' : '';
+    const eventChecked = cfg.event_push ? 'checked' : '';
+    return '<div class="push-instance-row"><span class="inst-name">' + sid + '</span><div class="toggles"><label class="toggle-item"><input type="checkbox" class="push-chat" data-sid="' + sid + '" ' + chatChecked + '> 聊天推送</label><label class="toggle-item"><input type="checkbox" class="push-event" data-sid="' + sid + '" ' + eventChecked + '> 事件推送</label></div></div>';
+  }).join('');
+
+  container.querySelectorAll('.push-chat').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      const sid = cb.getAttribute('data-sid');
+      if (!instancePushConfig[sid]) instancePushConfig[sid] = {};
+      instancePushConfig[sid].chat_push = cb.checked;
+    });
+  });
+  container.querySelectorAll('.push-event').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      const sid = cb.getAttribute('data-sid');
+      if (!instancePushConfig[sid]) instancePushConfig[sid] = {};
+      instancePushConfig[sid].event_push = cb.checked;
     });
   });
 }
@@ -75,7 +118,7 @@ function renderMessages() {
 
 function addMessage(msg) {
   messages.unshift(msg);
-  if (messages.length > 50) messages.pop();
+  if (messages.length > 200) messages.pop();
   renderMessages();
 }
 
@@ -150,8 +193,7 @@ async function loadConfig() {
     document.getElementById('cfg-token').value = cfg.shared_token || '';
     document.getElementById('cfg-default-server').value = cfg.default_server_id || 'default';
     document.getElementById('cfg-event-group').value = cfg.minecraft_event_group || '';
-    document.getElementById('cfg-chat-push').checked = !!cfg.chat_push_enabled;
-    document.getElementById('cfg-event-push').checked = !!cfg.server_event_push_enabled;
+    instancePushConfig = cfg.instance_push_config || {};
     console.log('[mcbridge] config loaded');
   } catch (e) {
     console.error('[mcbridge] loadConfig error:', e);
@@ -169,15 +211,14 @@ document.getElementById('btn-save-config').addEventListener('click', async funct
       shared_token: document.getElementById('cfg-token').value,
       default_server_id: document.getElementById('cfg-default-server').value,
       minecraft_event_group: document.getElementById('cfg-event-group').value,
-      chat_push_enabled: document.getElementById('cfg-chat-push').checked,
-      server_event_push_enabled: document.getElementById('cfg-event-push').checked,
+      instance_push_config: instancePushConfig,
     });
     btn.textContent = '已保存';
-    setTimeout(() => { btn.textContent = '保存配置'; btn.disabled = false; }, 2000);
+    setTimeout(function() { btn.textContent = '保存配置'; btn.disabled = false; }, 2000);
   } catch (e) {
     console.error('[mcbridge] saveConfig error:', e);
     btn.textContent = '保存失败';
-    setTimeout(() => { btn.textContent = '保存配置'; btn.disabled = false; }, 2000);
+    setTimeout(function() { btn.textContent = '保存配置'; btn.disabled = false; }, 2000);
   }
 });
 

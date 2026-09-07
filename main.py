@@ -225,6 +225,7 @@ class MinecraftBridgePlugin(Star):
                     "chat_rate_window": self.config.get("chat_rate_window", 60),
                     "inbound_max_message_length": self.config.get("inbound_max_message_length", 1000),
                     "outbound_max_message_length": self.config.get("outbound_max_message_length", 1000),
+                    "instance_push_config": self.config.get("instance_push_config", {}),
                 }
             })
         except Exception as e:
@@ -245,7 +246,8 @@ class MinecraftBridgePlugin(Star):
                         "heartbeat_timeout", "rpc_timeout", "group_id_prefix", "bridge_on",
                         "minecraft_event_group", "chat_push_enabled", "server_event_push_enabled",
                         "llm_reply_enabled", "llm_reply_weight", "chat_rate_limit", "chat_rate_window",
-                        "inbound_max_message_length", "outbound_max_message_length"]:
+                        "inbound_max_message_length", "outbound_max_message_length",
+                        "instance_push_config"]:
                 if key in payload:
                     self.config[key] = payload[key]
 
@@ -480,19 +482,17 @@ class MinecraftBridgePlugin(Star):
         server_id = item.get("server_id", "default")
         payload = item.get("data", {})
 
-        logger.info(f"[{server_id}] _push_event_to_group: type={event_type}, "
-                     f"chat_push={self.bridge.config.get('chat_push_enabled')}, "
-                     f"event_push={self.bridge.config.get('server_event_push_enabled')}, "
-                     f"event_group={self.bridge.config.get('minecraft_event_group')}")
-
-        # 检查推送开关
+        # 检查推送开关（优先每实例配置，回退全局配置）
+        inst_cfg = self.bridge.config.get("instance_push_config", {}).get(server_id, {})
         if event_type in (EVENT_CHAT, EVENT_WHISPER):
-            if not self.bridge.config.get("chat_push_enabled", False):
-                logger.debug(f"[{server_id}] chat_push_enabled=False, 跳过")
+            chat_push = inst_cfg.get("chat_push", self.bridge.config.get("chat_push_enabled", False))
+            if not chat_push:
+                logger.debug(f"[{server_id}] chat_push=False, 跳过")
                 return
         else:
-            if not self.bridge.config.get("server_event_push_enabled", False):
-                logger.debug(f"[{server_id}] server_event_push_enabled=False, 跳过")
+            event_push = inst_cfg.get("event_push", self.bridge.config.get("server_event_push_enabled", False))
+            if not event_push:
+                logger.debug(f"[{server_id}] event_push=False, 跳过")
                 return
 
         event_group = self.bridge.config.get("minecraft_event_group", "")
