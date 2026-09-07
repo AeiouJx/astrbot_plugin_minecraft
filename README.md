@@ -96,11 +96,10 @@ MIT
 ### 2026-09-07
 
 - **QQ 群推送修复**: 使用 AstrBot `MessageSesion` 格式 (`{platform_id}:GroupMessage:{group_id}`) 调用 `context.send_message()`，正确找到 QQ 平台适配器并推送消息
-- **Dashboard 重构**: 配置面板移到 Connected Servers 上方，改为 2 列布局（实例列表 + 消息区）
-- **实例默认按钮**: Connected Servers 每个实例新增「设为默认」按钮，点击自动填充默认服务器实例 ID
-- **每实例推送开关**: 事件推送改为每个 BOT 实例独立配置（`instance_push_config`），可分别为每个实例启用/禁用聊天推送和事件推送
-- **Dashboard 实例消息分离**: 选择哪个 BOT 实例就显示哪个实例的消息，默认选中第一个实例
-- **Dashboard 配置面板修复**: `_api_get_config` 返回 QQ 推送相关配置项；加载时自动填充表单；保存按钮真正调用 API 保存配置
+- **细粒度事件推送开关**: 每种事件类型独立控制是否推送到 QQ 群（`push_chat`, `push_whisper`, `push_player_join`, `push_player_leave`, `push_death`, `push_achievement`, `push_system`），替代原来的笼统开关
+- **Dashboard 精简**: 去掉冗余配置面板（WS/Token/默认实例），只保留状态展示、实例列表和消息查看
+- **消息时间戳**: Dashboard 消息区显示每条消息的时间戳
+- **Dashboard 实例消息分离**: 选择哪个 BOT 实例就显示哪个实例的消息
 - **保存配置不再断开连接**: 只有 WS 相关配置变更时才重启 bridge
 - **平台自动注册**: 插件启动时自动注册 `minecraft_bridge` 平台
 - **后台事件消费**: `_consume_events()` 直接从 `event_queue` 读取事件推送到 Dashboard 和 QQ

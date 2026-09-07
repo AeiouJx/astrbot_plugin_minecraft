@@ -482,18 +482,11 @@ class MinecraftBridgePlugin(Star):
         server_id = item.get("server_id", "default")
         payload = item.get("data", {})
 
-        # 检查推送开关（优先每实例配置，回退全局配置）
-        inst_cfg = self.bridge.config.get("instance_push_config", {}).get(server_id, {})
-        if event_type in (EVENT_CHAT, EVENT_WHISPER):
-            chat_push = inst_cfg.get("chat_push", self.bridge.config.get("chat_push_enabled", False))
-            if not chat_push:
-                logger.debug(f"[{server_id}] chat_push=False, 跳过")
-                return
-        else:
-            event_push = inst_cfg.get("event_push", self.bridge.config.get("server_event_push_enabled", False))
-            if not event_push:
-                logger.debug(f"[{server_id}] event_push=False, 跳过")
-                return
+        # 检查推送开关（每事件类型独立配置）
+        push_key = f"push_{event_type}"
+        if not self.bridge.config.get(push_key, False):
+            logger.debug(f"[{server_id}] {push_key}=False, 跳过")
+            return
 
         event_group = self.bridge.config.get("minecraft_event_group", "")
         if not event_group:

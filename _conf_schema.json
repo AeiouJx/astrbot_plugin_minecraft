@@ -75,23 +75,53 @@
         "default": [],
         "hint": "黑名单中的用户发送的消息不会被处理"
     },
-    "server_event_push_enabled": {
-        "description": "启用 Minecraft 事件推送",
-        "type": "bool",
-        "default": false,
-        "hint": "接收并投递 Mod 发来的玩家上下线、死亡和公开成就事件"
-    },
-    "chat_push_enabled": {
-        "description": "启用聊天消息推送到群",
-        "type": "bool",
-        "default": false,
-        "hint": "将 Minecraft 玩家聊天推送到配置的群聊"
-    },
     "minecraft_event_group": {
         "description": "Minecraft 事件推送群号",
         "type": "string",
         "default": "",
-        "hint": "留空不推送；填写后游戏事件会推送到该群"
+        "hint": "留空不推送；填写后选中的事件类型会推送到该群"
+    },
+    "push_chat": {
+        "description": "推送聊天消息",
+        "type": "bool",
+        "default": false,
+        "hint": "将玩家公开聊天推送到 QQ 群"
+    },
+    "push_whisper": {
+        "description": "推送私聊消息",
+        "type": "bool",
+        "default": false,
+        "hint": "将玩家私聊消息推送到 QQ 群"
+    },
+    "push_player_join": {
+        "description": "推送玩家加入",
+        "type": "bool",
+        "default": false,
+        "hint": "玩家加入游戏时推送到 QQ 群"
+    },
+    "push_player_leave": {
+        "description": "推送玩家离开",
+        "type": "bool",
+        "default": false,
+        "hint": "玩家离开游戏时推送到 QQ 群"
+    },
+    "push_death": {
+        "description": "推送死亡事件",
+        "type": "bool",
+        "default": false,
+        "hint": "Bot 死亡时推送到 QQ 群"
+    },
+    "push_achievement": {
+        "description": "推送成就事件",
+        "type": "bool",
+        "default": false,
+        "hint": "玩家达成成就时推送到 QQ 群"
+    },
+    "push_system": {
+        "description": "推送系统消息",
+        "type": "bool",
+        "default": false,
+        "hint": "系统消息（如摔死、烧死等）推送到 QQ 群"
     },
     "inbound_max_message_length": {
         "description": "入站消息最大长度",
