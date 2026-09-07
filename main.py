@@ -510,6 +510,10 @@ class MinecraftBridgePlugin(Star):
         server_id = item.get("server_id", "default")
         payload = item.get("data", {})
 
+        # 获取实际 MC 账号名（优先用 account，fallback 到 server_id）
+        conn_info = self.bridge.registry.get_connection_info(server_id)
+        account = (conn_info or {}).get("account", "") or server_id
+
         # 检查推送开关（每事件类型独立配置）
         push_key = f"push_{event_type}"
         if not self.bridge.config.get(push_key, False):
@@ -533,27 +537,27 @@ class MinecraftBridgePlugin(Star):
             return
         self._qq_push_last[dedup_key] = now_ts
 
-        # 格式化消息
+        # 格式化消息（用 account 显示）
         from datetime import datetime
         now = datetime.now().strftime("%H:%M:%S")
         msg = None
         if event_type == EVENT_CHAT:
-            msg = f"[{now}] [{server_id}] {payload.get('sender', 'unknown')}: {payload.get('message', '')}"
+            msg = f"[{now}] [{account}] {payload.get('sender', 'unknown')}: {payload.get('message', '')}"
         elif event_type == EVENT_WHISPER:
             if not payload.get("outgoing"):
-                msg = f"[{now}] [{server_id}] {payload.get('sender', 'unknown')} -> {payload.get('receiver', '')}: {payload.get('message', '')}"
+                msg = f"[{now}] [{account}] {payload.get('sender', 'unknown')} -> {payload.get('receiver', '')}: {payload.get('message', '')}"
         elif event_type == EVENT_PLAYER_JOIN:
-            msg = f"[{now}] [{server_id}] 玩家 {payload.get('player', 'unknown')} 加入了游戏"
+            msg = f"[{now}] [{account}] 玩家 {payload.get('player', 'unknown')} 加入了游戏"
         elif event_type == EVENT_PLAYER_LEAVE:
-            msg = f"[{now}] [{server_id}] 玩家 {payload.get('player', 'unknown')} 离开了游戏"
+            msg = f"[{now}] [{account}] 玩家 {payload.get('player', 'unknown')} 离开了游戏"
         elif event_type == EVENT_DEATH:
-            msg = f"[{now}] [{server_id}] Bot 死亡了"
+            msg = f"[{now}] [{account}] Bot 死亡了"
         elif event_type == EVENT_ACHIEVEMENT:
-            msg = f"[{now}] [{server_id}] 玩家 {payload.get('player', 'unknown')} 达成了成就: {payload.get('achievement', '未知成就')}"
+            msg = f"[{now}] [{account}] 玩家 {payload.get('player', 'unknown')} 达成了成就: {payload.get('achievement', '未知成就')}"
         elif event_type == EVENT_SYSTEM:
             system_msg = payload.get("message", "")
             if system_msg:
-                msg = f"[{now}] [{server_id}] 系统: {system_msg}"
+                msg = f"[{now}] [{account}] 系统: {system_msg}"
 
         if not msg:
             return
@@ -652,7 +656,7 @@ class MinecraftBridgePlugin(Star):
             if re.search(pattern, text):
                 return False
 
-        # 检测 [] 括号内的内容（如死亡消息中的物品名、QQ号等）
+        # 检测 [] 括号内的内容（如死亡消息中的物品名等）
         bracket_contents = re.findall(r'\[([^\]]+)\]', msg)
         for content in bracket_contents:
             content_lower = content.lower()
@@ -660,9 +664,6 @@ class MinecraftBridgePlugin(Star):
             for pattern in _BUILTIN_BLOCKED:
                 if re.search(pattern, content_lower):
                     return False
-            # 括号内容含 QQ/微信/手机号等联系方式
-            if re.search(r'\d{5,12}', content):  # 5位以上纯数字（QQ号/手机号）
-                return False
             # 自定义违禁词
             for word in custom_words:
                 if word and word.lower() in content_lower:
