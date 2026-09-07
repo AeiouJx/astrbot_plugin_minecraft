@@ -40,7 +40,12 @@ function renderInstanceList() {
   const list = document.getElementById('instance-list');
   if (instances.length === 0) {
     list.innerHTML = '<div class="empty-state">暂无实例</div>';
+    selectedInstance = null;
     return;
+  }
+  // 默认选中第一个
+  if (!selectedInstance || !instances.some(function(i) { return i.server_id === selectedInstance; })) {
+    selectedInstance = instances[0].server_id;
   }
   list.innerHTML = instances.map(function(inst) {
     const cls = selectedInstance === inst.server_id ? 'instance-item active' : 'instance-item';
@@ -51,17 +56,19 @@ function renderInstanceList() {
     el.addEventListener('click', function() {
       selectedInstance = el.getAttribute('data-id');
       renderInstanceList();
+      renderMessages();
     });
   });
 }
 
 function renderMessages() {
   const area = document.getElementById('message-area');
-  if (messages.length === 0) {
+  const filtered = selectedInstance ? messages.filter(function(m) { return m.server_id === selectedInstance; }) : messages;
+  if (filtered.length === 0) {
     area.innerHTML = '<div class="empty-state">暂无消息</div>';
     return;
   }
-  area.innerHTML = messages.map(function(msg) {
+  area.innerHTML = filtered.map(function(msg) {
     return '<div class="message-item"><div class="time"><span class="server-tag">' + msg.server_id + '</span> ' + msg.time + '</div><div class="sender">' + msg.sender + '</div><div class="content">' + msg.content + '</div></div>';
   }).join('');
 }
