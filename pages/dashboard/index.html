@@ -181,25 +181,25 @@
   </div>
 
   <script src="/api/plugin/page/bridge-sdk.js"></script>
-  <script>
+  <script type="module">
+    const bridge = window.AstrBotPluginPage;
+
     var instances = [];
     var selectedInstance = null;
     var messages = [];
-    
+
     async function loadStatus() {
       try {
-        var resp = await bridge.apiGet('status');
-        console.log('[mcbridge] status:', resp);
-        var data = resp && resp.data ? resp.data : resp;
-        
+        var data = await bridge.apiGet('status');
+        console.log('[mcbridge] status:', data);
+
         document.getElementById('ws-status').textContent = data.bridge_on ? 'Running' : 'Stopped';
         document.getElementById('listen-addr').textContent = 'ws://' + (data.ws_host || '?') + ':' + (data.ws_port || '?');
         document.getElementById('online-count').textContent = data.online_count != null ? data.online_count : '?';
         document.getElementById('pending-queries').textContent = data.pending_queries != null ? data.pending_queries : '?';
-        
-        var serversResp = await bridge.apiGet('servers');
-        console.log('[mcbridge] servers:', serversResp);
-        var sd = serversResp && serversResp.data ? serversResp.data : serversResp;
+
+        var sd = await bridge.apiGet('servers');
+        console.log('[mcbridge] servers:', sd);
         instances = (sd && sd.servers) || [];
         renderServerList();
         renderInstanceList();
@@ -207,7 +207,7 @@
         console.error('[mcbridge] loadStatus error:', e);
       }
     }
-    
+
     function renderServerList() {
       var list = document.getElementById('server-list');
       if (instances.length === 0) {
@@ -218,7 +218,7 @@
         return '<div class="server-item"><div><div class="name">' + inst.server_id + '</div><div class="meta">ZenithProxy</div></div><div class="meta">Mod: ' + (inst.mod_version || '?') + ' | Caps: ' + (inst.capabilities || []).join(', ') + '</div></div>';
       }).join('');
     }
-    
+
     function renderInstanceList() {
       var list = document.getElementById('instance-list');
       if (instances.length === 0) {
@@ -230,18 +230,18 @@
         return '<div class="' + cls + '" onclick="selectInstance(\'' + inst.server_id + '\')"><div class="name">' + inst.server_id + '</div><div class="detail online">● 已连接</div></div>';
       }).join('');
     }
-    
+
     function selectInstance(serverId) {
       selectedInstance = serverId;
       renderInstanceList();
     }
-    
+
     function addMessage(msg) {
       messages.unshift(msg);
       if (messages.length > 50) messages.pop();
       renderMessages();
     }
-    
+
     function renderMessages() {
       var area = document.getElementById('message-area');
       if (messages.length === 0) {
@@ -252,45 +252,46 @@
         return '<div class="message-item"><div class="time"><span class="server-tag">' + msg.server_id + '</span> ' + msg.time + '</div><div class="sender">' + msg.sender + '</div><div class="content">' + msg.content + '</div></div>';
       }).join('');
     }
-    
-    function clearMessages() {
+
+    window.clearMessages = function() {
       messages = [];
       renderMessages();
-    }
-    
-    async function sendChat() {
+    };
+
+    window.sendChat = async function() {
       var input = document.getElementById('chat-input');
       var msg = input.value.trim();
       if (!msg || !selectedInstance) return;
       input.value = '';
       addMessage({ server_id: selectedInstance, sender: 'Bot', content: msg, time: new Date().toLocaleTimeString() });
-    }
-    
-    async function startWs() {
+    };
+
+    window.startWs = async function() {
       await bridge.apiPost('start');
       setTimeout(loadStatus, 1000);
-    }
-    
-    async function stopWs() {
+    };
+
+    window.stopWs = async function() {
       await bridge.apiPost('stop');
       setTimeout(loadStatus, 1000);
-    }
-    
-    async function saveConfig() {
+    };
+
+    window.saveConfig = function() {
       alert('配置已保存（需重载插件生效）');
+    };
+
+    window.selectInstance = selectInstance;
+    window.loadStatus = loadStatus;
+
+    try {
+      var ctx = await bridge.ready();
+      console.log('[mcbridge] bridge ready, context:', ctx);
+      await loadStatus();
+      setInterval(loadStatus, 5000);
+    } catch (e) {
+      console.error('[mcbridge] init error:', e);
+      document.getElementById('ws-status').textContent = 'Error';
     }
-    
-    (async function() {
-      try {
-        await bridge.ready();
-        console.log('[mcbridge] bridge ready');
-        await loadStatus();
-        setInterval(loadStatus, 5000);
-      } catch (e) {
-        console.error('[mcbridge] init error:', e);
-        document.getElementById('ws-status').textContent = 'Error';
-      }
-    })();
   </script>
 </body>
 </html>
