@@ -480,16 +480,24 @@ class MinecraftBridgePlugin(Star):
         server_id = item.get("server_id", "default")
         payload = item.get("data", {})
 
+        logger.info(f"[{server_id}] _push_event_to_group: type={event_type}, "
+                     f"chat_push={self.bridge.config.get('chat_push_enabled')}, "
+                     f"event_push={self.bridge.config.get('server_event_push_enabled')}, "
+                     f"event_group={self.bridge.config.get('minecraft_event_group')}")
+
         # 检查推送开关
         if event_type in (EVENT_CHAT, EVENT_WHISPER):
             if not self.bridge.config.get("chat_push_enabled", False):
+                logger.debug(f"[{server_id}] chat_push_enabled=False, 跳过")
                 return
         else:
             if not self.bridge.config.get("server_event_push_enabled", False):
+                logger.debug(f"[{server_id}] server_event_push_enabled=False, 跳过")
                 return
 
         event_group = self.bridge.config.get("minecraft_event_group", "")
         if not event_group:
+            logger.debug(f"[{server_id}] minecraft_event_group 为空, 跳过")
             return
 
         # 格式化消息
@@ -518,13 +526,14 @@ class MinecraftBridgePlugin(Star):
         # 发送到 QQ 群
         try:
             platform_id = f"aiocqhttp:group:{event_group}"
+            logger.info(f"[{server_id}] 尝试推送到 {platform_id}: {msg[:80]}")
             await self.context.send_message(
                 platform_id=platform_id,
                 message=msg,
             )
             logger.info(f"[{server_id}] 已推送到群 {event_group}: {msg[:50]}...")
         except Exception as e:
-            logger.warning(f"[{server_id}] 推送到群失败: {e}")
+            logger.warning(f"[{server_id}] 推送到群失败: {e}", exc_info=True)
 
     async def terminate(self):
         """插件卸载/停用时清理。"""
