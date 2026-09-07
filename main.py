@@ -115,7 +115,7 @@ class MinecraftBridgePlugin(Star):
         from astrbot.api.web import json_response
         try:
             # 直接检查 WS 服务器是否在运行
-            ws_running = self.bridge.ws._runner is not None if self.bridge.ws else False
+            ws_running = self.bridge.ws_server._runner is not None if self.bridge.ws_server else False
             return json_response({
                 "status": "ok",
                 "data": {
