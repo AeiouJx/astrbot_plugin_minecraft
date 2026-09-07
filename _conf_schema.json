@@ -1,4 +1,10 @@
 {
+    "bridge_on": {
+        "description": "自动创建并启用 Minecraft Bridge 平台",
+        "type": "bool",
+        "default": false,
+        "hint": "推荐保持开启。启用插件时若没有 minecraft_bridge 平台实例，将用本页配置自动创建并监听；已有实例会保留原配置。需要在消息平台页手动停用时，请先关闭此项"
+    },
     "ws_host": {
         "description": "WebSocket 监听地址",
         "type": "string",
@@ -50,12 +56,6 @@
         "type": "string",
         "default": "minecraft",
         "hint": "生成格式: {prefix}:{server_id}，一般不需要修改"
-    },
-    "bridge_on": {
-        "description": "自动创建并启用 Minecraft Bridge 平台",
-        "type": "bool",
-        "default": false,
-        "hint": "推荐保持开启。启用插件时若没有 minecraft_bridge 平台实例，将用本页配置自动创建并监听；已有实例会保留原配置。需要在消息平台页手动停用时，请先关闭此项"
     },
     "notify_group": {
         "description": "审核通知群",

@@ -520,24 +520,26 @@ class MinecraftBridgePlugin(Star):
             return
 
         # 格式化消息
+        from datetime import datetime
+        now = datetime.now().strftime("%H:%M:%S")
         msg = None
         if event_type == EVENT_CHAT:
-            msg = f"[{server_id}] {payload.get('sender', 'unknown')}: {payload.get('message', '')}"
+            msg = f"[{now}] [{server_id}] {payload.get('sender', 'unknown')}: {payload.get('message', '')}"
         elif event_type == EVENT_WHISPER:
             if not payload.get("outgoing"):
-                msg = f"[{server_id}] {payload.get('sender', 'unknown')} -> {payload.get('receiver', '')}: {payload.get('message', '')}"
+                msg = f"[{now}] [{server_id}] {payload.get('sender', 'unknown')} -> {payload.get('receiver', '')}: {payload.get('message', '')}"
         elif event_type == EVENT_PLAYER_JOIN:
-            msg = f"[{server_id}] 玩家 {payload.get('player', 'unknown')} 加入了游戏"
+            msg = f"[{now}] [{server_id}] 玩家 {payload.get('player', 'unknown')} 加入了游戏"
         elif event_type == EVENT_PLAYER_LEAVE:
-            msg = f"[{server_id}] 玩家 {payload.get('player', 'unknown')} 离开了游戏"
+            msg = f"[{now}] [{server_id}] 玩家 {payload.get('player', 'unknown')} 离开了游戏"
         elif event_type == EVENT_DEATH:
-            msg = f"[{server_id}] Bot 死亡了"
+            msg = f"[{now}] [{server_id}] Bot 死亡了"
         elif event_type == EVENT_ACHIEVEMENT:
-            msg = f"[{server_id}] 玩家 {payload.get('player', 'unknown')} 达成了成就: {payload.get('achievement', '未知成就')}"
+            msg = f"[{now}] [{server_id}] 玩家 {payload.get('player', 'unknown')} 达成了成就: {payload.get('achievement', '未知成就')}"
         elif event_type == EVENT_SYSTEM:
             system_msg = payload.get("message", "")
             if system_msg:
-                msg = f"[{server_id}] 系统: {system_msg}"
+                msg = f"[{now}] [{server_id}] 系统: {system_msg}"
 
         if not msg:
             return

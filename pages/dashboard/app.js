@@ -7,7 +7,7 @@ let instances = [];
 function ts() {
   const d = new Date();
   const p = function(n) { return n < 10 ? '0' + n : n; };
-  return d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
 }
 
 async function loadStatus() {
@@ -30,7 +30,7 @@ function renderTabs() {
     tabs.innerHTML = '<span class="tab active">全部</span>';
     return;
   }
-  if (!selectedInstance || !instances.some(function(i) { return i.server_id === selectedInstance; })) {
+  if (selectedInstance && !instances.some(function(i) { return i.server_id === selectedInstance; })) {
     selectedInstance = null;
   }
   let html = '<button class="tab' + (!selectedInstance ? ' active' : '') + '" data-id="">全部</button>';
@@ -58,31 +58,30 @@ function renderChat() {
   }
   area.innerHTML = filtered.map(function(msg) {
     const time = msg.timestamp ? formatTs(msg.timestamp) : msg.time;
-    const tag = msg.server_id ? '<span class="server-tag">' + msg.server_id + '</span>' : '';
-    const cls = msg.type || 'chat';
-    if (cls === 'chat') {
-      return '<div class="chat-line chat"><span class="ts">' + time + '</span>' + tag + '<span class="sender">&lt;|' + escapeHtml(msg.sender) + '&gt;</span> ' + escapeHtml(msg.content) + '</div>';
+    const type = msg.type || 'chat';
+    if (type === 'chat') {
+      return '<div class="msg-card chat"><div class="msg-header"><span class="server-tag">' + esc(msg.server_id) + '</span><span class="msg-time">' + time + '</span></div><div class="msg-sender">' + esc(msg.sender) + '</div><div class="msg-content">' + esc(msg.content) + '</div></div>';
     } else {
-      return '<div class="chat-line ' + cls + '"><span class="ts">' + time + '</span>' + tag + escapeHtml(msg.content) + '</div>';
+      return '<div class="msg-card ' + type + '"><div class="msg-header"><span class="server-tag">' + esc(msg.server_id) + '</span><span class="msg-time">' + time + '</span></div><div class="msg-content">' + esc(msg.content) + '</div></div>';
     }
   }).join('');
-  area.scrollTop = 0;
+  area.scrollTop = area.scrollHeight;
 }
 
 function formatTs(ts) {
   const d = new Date(typeof ts === 'number' ? ts * 1000 : ts);
   const p = function(n) { return n < 10 ? '0' + n : n; };
-  return d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
 }
 
-function escapeHtml(s) {
+function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function addMessage(msg) {
   if (!msg.time) msg.time = ts();
-  messages.unshift(msg);
-  if (messages.length > 500) messages.pop();
+  messages.push(msg);
+  if (messages.length > 512) messages.shift();
   renderChat();
 }
 
@@ -106,19 +105,17 @@ async function loadPlayers() {
   try {
     const data = await bridge.apiGet('players');
     if (!data) return;
-    let totalPlaying = 0, totalQueue = 0;
+    let totalPlaying = 0;
     let allPlayers = [];
     Object.keys(data).forEach(function(sid) {
       const info = data[sid];
       const players = info.players || [];
       totalPlaying += players.length;
-      players.forEach(function(p) {
-        allPlayers.push({ name: p, server: sid });
-      });
+      players.forEach(function(p) { allPlayers.push({ name: p, server: sid }); });
     });
-    document.getElementById('stat-total').textContent = totalPlaying + totalQueue;
+    document.getElementById('stat-total').textContent = totalPlaying;
     document.getElementById('stat-playing').textContent = totalPlaying;
-    document.getElementById('stat-queue').textContent = totalQueue;
+    document.getElementById('stat-queue').textContent = '0';
 
     const list = document.getElementById('player-list');
     if (allPlayers.length === 0) {
@@ -127,8 +124,7 @@ async function loadPlayers() {
     }
     allPlayers.sort(function(a, b) { return a.name.localeCompare(b.name); });
     list.innerHTML = allPlayers.map(function(p) {
-      const initial = p.name.charAt(0).toUpperCase();
-      return '<div class="player-item"><div class="player-avatar">' + initial + '</div><span class="player-name">' + escapeHtml(p.name) + '</span><span class="server-tag">' + p.server + '</span></div>';
+      return '<div class="player-item"><div class="player-avatar">' + p.name.charAt(0).toUpperCase() + '</div><span class="player-name">' + esc(p.name) + '</span><span class="server-tag">' + p.server + '</span></div>';
     }).join('');
   } catch (e) {}
 }
@@ -160,9 +156,7 @@ document.getElementById('btn-send').addEventListener('click', async function() {
   input.value = '';
   const target = selectedInstance || (instances.length > 0 ? instances[0].server_id : null);
   if (!target) return;
-  try {
-    await bridge.apiPost('send', { server_id: target, message: msg });
-  } catch (e) {}
+  try { await bridge.apiPost('send', { server_id: target, message: msg }); } catch (e) {}
 });
 
 document.getElementById('chat-input').addEventListener('keypress', function(e) {
