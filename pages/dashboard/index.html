@@ -182,67 +182,53 @@
 
   <script src="/api/plugin/page/bridge-sdk.js"></script>
   <script>
-    let bridge;
-    let instances = [];
-    let selectedInstance = null;
-    let messages = [];
-    
-    async function init() {
-      bridge = await window.__BRIDGE_READY__;
-      loadStatus();
-      setInterval(loadStatus, 5000);
-    }
+    var instances = [];
+    var selectedInstance = null;
+    var messages = [];
     
     async function loadStatus() {
       try {
-        const data = await bridge.apiGet('status');
-        const status = data.data || {};
+        var resp = await bridge.apiGet('status');
+        console.log('[mcbridge] status:', resp);
+        var data = resp && resp.data ? resp.data : resp;
         
-        document.getElementById('ws-status').textContent = status.bridge_on ? 'Running' : 'Stopped';
-        document.getElementById('ws-status').className = `value ${status.bridge_on ? 'running' : 'stopped'}`;
-        document.getElementById('listen-addr').textContent = `ws://${status.ws_host || '0.0.0.0'}:${status.ws_port || 8765}`;
-        document.getElementById('online-count').textContent = status.online_count || 0;
-        document.getElementById('pending-queries').textContent = status.pending_queries || 0;
+        document.getElementById('ws-status').textContent = data.bridge_on ? 'Running' : 'Stopped';
+        document.getElementById('listen-addr').textContent = 'ws://' + (data.ws_host || '?') + ':' + (data.ws_port || '?');
+        document.getElementById('online-count').textContent = data.online_count != null ? data.online_count : '?';
+        document.getElementById('pending-queries').textContent = data.pending_queries != null ? data.pending_queries : '?';
         
-        const serversData = await bridge.apiGet('servers');
-        instances = serversData.data || [];
-        
+        var serversResp = await bridge.apiGet('servers');
+        console.log('[mcbridge] servers:', serversResp);
+        var sd = serversResp && serversResp.data ? serversResp.data : serversResp;
+        instances = (sd && sd.servers) || [];
         renderServerList();
         renderInstanceList();
       } catch (e) {
-        console.error('加载状态失败:', e);
+        console.error('[mcbridge] loadStatus error:', e);
       }
     }
     
     function renderServerList() {
-      const list = document.getElementById('server-list');
+      var list = document.getElementById('server-list');
       if (instances.length === 0) {
         list.innerHTML = '<div class="empty-state">暂无已连接服务器</div>';
         return;
       }
-      list.innerHTML = instances.map(inst => `
-        <div class="server-item">
-          <div>
-            <div class="name">${inst.server_id}</div>
-            <div class="meta">ZenithProxy Raspi</div>
-          </div>
-          <div class="meta">Mod: ${inst.mod_version || '1.0.0'} | Caps: ${(inst.capabilities || []).join(', ')}</div>
-        </div>
-      `).join('');
+      list.innerHTML = instances.map(function(inst) {
+        return '<div class="server-item"><div><div class="name">' + inst.server_id + '</div><div class="meta">ZenithProxy</div></div><div class="meta">Mod: ' + (inst.mod_version || '?') + ' | Caps: ' + (inst.capabilities || []).join(', ') + '</div></div>';
+      }).join('');
     }
     
     function renderInstanceList() {
-      const list = document.getElementById('instance-list');
+      var list = document.getElementById('instance-list');
       if (instances.length === 0) {
         list.innerHTML = '<div class="empty-state">暂无实例</div>';
         return;
       }
-      list.innerHTML = instances.map(inst => `
-        <div class="instance-item ${selectedInstance === inst.server_id ? 'active' : ''}" onclick="selectInstance('${inst.server_id}')">
-          <div class="name">${inst.server_id}</div>
-          <div class="detail online">● 已连接</div>
-        </div>
-      `).join('');
+      list.innerHTML = instances.map(function(inst) {
+        var cls = selectedInstance === inst.server_id ? 'instance-item active' : 'instance-item';
+        return '<div class="' + cls + '" onclick="selectInstance(\'' + inst.server_id + '\')"><div class="name">' + inst.server_id + '</div><div class="detail online">● 已连接</div></div>';
+      }).join('');
     }
     
     function selectInstance(serverId) {
@@ -257,18 +243,14 @@
     }
     
     function renderMessages() {
-      const area = document.getElementById('message-area');
+      var area = document.getElementById('message-area');
       if (messages.length === 0) {
         area.innerHTML = '<div class="empty-state">暂无消息</div>';
         return;
       }
-      area.innerHTML = messages.map(msg => `
-        <div class="message-item">
-          <div class="time"><span class="server-tag">${msg.server_id}</span> ${msg.time}</div>
-          <div class="sender">${msg.sender}</div>
-          <div class="content">${msg.content}</div>
-        </div>
-      `).join('');
+      area.innerHTML = messages.map(function(msg) {
+        return '<div class="message-item"><div class="time"><span class="server-tag">' + msg.server_id + '</span> ' + msg.time + '</div><div class="sender">' + msg.sender + '</div><div class="content">' + msg.content + '</div></div>';
+      }).join('');
     }
     
     function clearMessages() {
@@ -277,8 +259,8 @@
     }
     
     async function sendChat() {
-      const input = document.getElementById('chat-input');
-      const msg = input.value.trim();
+      var input = document.getElementById('chat-input');
+      var msg = input.value.trim();
       if (!msg || !selectedInstance) return;
       input.value = '';
       addMessage({ server_id: selectedInstance, sender: 'Bot', content: msg, time: new Date().toLocaleTimeString() });
@@ -298,7 +280,17 @@
       alert('配置已保存（需重载插件生效）');
     }
     
-    init();
+    (async function() {
+      try {
+        await bridge.ready();
+        console.log('[mcbridge] bridge ready');
+        await loadStatus();
+        setInterval(loadStatus, 5000);
+      } catch (e) {
+        console.error('[mcbridge] init error:', e);
+        document.getElementById('ws-status').textContent = 'Error';
+      }
+    })();
   </script>
 </body>
 </html>
