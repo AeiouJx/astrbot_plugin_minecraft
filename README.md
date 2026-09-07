@@ -95,12 +95,14 @@ MIT
 
 ### 2026-09-07
 
-- **QQ 群推送修复**: 使用 AstrBot `MessageSesion` 格式 (`{platform_id}:GroupMessage:{group_id}`) 调用 `context.send_message()`，正确找到 QQ 平台适配器并推送消息
-- **细粒度事件推送开关**: 每种事件类型独立控制是否推送到 QQ 群（`push_chat`, `push_whisper`, `push_player_join`, `push_player_leave`, `push_death`, `push_achievement`, `push_system`）
-- **Dashboard 3c3u 风格重构**: 左侧聊天日志（带时间戳、事件类型着色），右侧在线情况面板（总人数/游玩/队列 + 在线玩家列表）
-- **在线玩家 API**: 新增 `/players` 端点，通过 RPC 查询各实例在线玩家
+- **QQ 推送内容过滤**: 推送到 QQ 的消息自动经过敏感词过滤（政治/色情/赌博/诈骗/毒品/暴力等），支持自定义违禁词列表（`qq_blocked_words`），默认开启（`qq_content_filter`）
+- **审核通知群**: 新增 `notify_group` 配置项，用于接收 Bot 异常、连接断开等重要事件通知
+- **配置描述优化**: `bridge_on` 描述改为与 mineastr 一致的"自动创建并启用 Minecraft Bridge 平台"
+- **QQ 群推送修复**: 使用 AstrBot `MessageSesion` 格式调用 `context.send_message()`，正确找到 QQ 平台适配器并推送消息
+- **细粒度事件推送开关**: 每种事件类型独立控制是否推送到 QQ 群
+- **Dashboard 3c3u 风格重构**: 左侧聊天日志 + 右侧在线情况/在线人员面板
+- **在线玩家 API**: 新增 `/players` 端点查询各实例在线玩家
 - **消息事件类型着色**: chat 蓝色、join 绿色、leave 红色、death 橙色、achievement 黄色、system 灰色
-- **Dashboard 精简**: 去掉冗余配置面板，只保留状态展示、实例切换和消息查看
 
 ### 2026-09-06
 
