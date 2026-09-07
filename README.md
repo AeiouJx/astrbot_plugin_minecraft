@@ -96,13 +96,11 @@ MIT
 ### 2026-09-07
 
 - **QQ 群推送修复**: 使用 AstrBot `MessageSesion` 格式 (`{platform_id}:GroupMessage:{group_id}`) 调用 `context.send_message()`，正确找到 QQ 平台适配器并推送消息
-- **细粒度事件推送开关**: 每种事件类型独立控制是否推送到 QQ 群（`push_chat`, `push_whisper`, `push_player_join`, `push_player_leave`, `push_death`, `push_achievement`, `push_system`），替代原来的笼统开关
-- **Dashboard 精简**: 去掉冗余配置面板（WS/Token/默认实例），只保留状态展示、实例列表和消息查看
-- **消息时间戳**: Dashboard 消息区显示每条消息的时间戳
-- **Dashboard 实例消息分离**: 选择哪个 BOT 实例就显示哪个实例的消息
-- **保存配置不再断开连接**: 只有 WS 相关配置变更时才重启 bridge
-- **平台自动注册**: 插件启动时自动注册 `minecraft_bridge` 平台
-- **后台事件消费**: `_consume_events()` 直接从 `event_queue` 读取事件推送到 Dashboard 和 QQ
+- **细粒度事件推送开关**: 每种事件类型独立控制是否推送到 QQ 群（`push_chat`, `push_whisper`, `push_player_join`, `push_player_leave`, `push_death`, `push_achievement`, `push_system`）
+- **Dashboard 3c3u 风格重构**: 左侧聊天日志（带时间戳、事件类型着色），右侧在线情况面板（总人数/游玩/队列 + 在线玩家列表）
+- **在线玩家 API**: 新增 `/players` 端点，通过 RPC 查询各实例在线玩家
+- **消息事件类型着色**: chat 蓝色、join 绿色、leave 红色、death 橙色、achievement 黄色、system 灰色
+- **Dashboard 精简**: 去掉冗余配置面板，只保留状态展示、实例切换和消息查看
 
 ### 2026-09-06
 
