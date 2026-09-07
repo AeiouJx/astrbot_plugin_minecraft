@@ -525,11 +525,12 @@ class MinecraftBridgePlugin(Star):
 
         # 发送到 QQ 群
         try:
-            logger.info(f"[{server_id}] 尝试推送到 aiocqhttp:group:{event_group}: {msg[:80]}")
-            await self.context.send_message(
-                f"aiocqhttp:group:{event_group}",
-                msg,
-            )
+            from astrbot.api.event import MessageChain
+            from astrbot.api.message_components import Plain
+            chain = MessageChain([Plain(text=msg)])
+            platform_id = f"aiocqhttp:group:{event_group}"
+            logger.info(f"[{server_id}] 尝试推送到 {platform_id}: {msg[:80]}")
+            await self.context.send_message(platform_id, chain)
             logger.info(f"[{server_id}] 已推送到群 {event_group}: {msg[:50]}...")
         except Exception as e:
             logger.warning(f"[{server_id}] 推送到群失败: {e}", exc_info=True)
