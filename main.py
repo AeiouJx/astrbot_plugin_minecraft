@@ -114,10 +114,12 @@ class MinecraftBridgePlugin(Star):
         """GET /astrbot_plugin_minecraft_bridge/status - 获取桥接状态。"""
         from astrbot.api.web import json_response
         try:
+            # 直接检查 WS 服务器是否在运行
+            ws_running = self.bridge.ws._runner is not None if self.bridge.ws else False
             return json_response({
                 "status": "ok",
                 "data": {
-                    "bridge_on": self._bridge_on,
+                    "bridge_on": ws_running or self._bridge_on,
                     "ws_host": self.config.get("ws_host", "0.0.0.0"),
                     "ws_port": self.config.get("ws_port", 8765),
                     "ws_path": self.config.get("ws_path", "/ws"),
