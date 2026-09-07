@@ -135,14 +135,50 @@ document.getElementById('chat-input').addEventListener('keypress', function(e) {
   if (e.key === 'Enter') document.getElementById('btn-send').click();
 });
 
-document.getElementById('btn-save-config').addEventListener('click', function() {
-  alert('配置已保存（需重载插件生效）');
+async function loadConfig() {
+  try {
+    const cfg = await bridge.apiGet('config');
+    document.getElementById('cfg-ws-host').value = cfg.ws_host || '0.0.0.0';
+    document.getElementById('cfg-ws-port').value = cfg.ws_port || 8765;
+    document.getElementById('cfg-token').value = cfg.shared_token || '';
+    document.getElementById('cfg-default-server').value = cfg.default_server_id || 'default';
+    document.getElementById('cfg-event-group').value = cfg.minecraft_event_group || '';
+    document.getElementById('cfg-chat-push').checked = !!cfg.chat_push_enabled;
+    document.getElementById('cfg-event-push').checked = !!cfg.server_event_push_enabled;
+    console.log('[mcbridge] config loaded');
+  } catch (e) {
+    console.error('[mcbridge] loadConfig error:', e);
+  }
+}
+
+document.getElementById('btn-save-config').addEventListener('click', async function() {
+  const btn = this;
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+  try {
+    await bridge.apiPost('config/save', {
+      ws_host: document.getElementById('cfg-ws-host').value,
+      ws_port: parseInt(document.getElementById('cfg-ws-port').value) || 8765,
+      shared_token: document.getElementById('cfg-token').value,
+      default_server_id: document.getElementById('cfg-default-server').value,
+      minecraft_event_group: document.getElementById('cfg-event-group').value,
+      chat_push_enabled: document.getElementById('cfg-chat-push').checked,
+      server_event_push_enabled: document.getElementById('cfg-event-push').checked,
+    });
+    btn.textContent = '已保存';
+    setTimeout(() => { btn.textContent = '保存配置'; btn.disabled = false; }, 2000);
+  } catch (e) {
+    console.error('[mcbridge] saveConfig error:', e);
+    btn.textContent = '保存失败';
+    setTimeout(() => { btn.textContent = '保存配置'; btn.disabled = false; }, 2000);
+  }
 });
 
 (async function() {
   try {
     const ctx = await bridge.ready();
     console.log('[mcbridge] bridge ready, context:', ctx);
+    await loadConfig();
     await loadStatus();
     setInterval(loadStatus, 5000);
     startSSE();

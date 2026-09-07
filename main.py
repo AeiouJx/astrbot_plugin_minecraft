@@ -216,6 +216,15 @@ class MinecraftBridgePlugin(Star):
                     "rpc_timeout": self.config.get("rpc_timeout", 10),
                     "group_id_prefix": self.config.get("group_id_prefix", "minecraft"),
                     "bridge_on": self.config.get("bridge_on", False),
+                    "minecraft_event_group": self.config.get("minecraft_event_group", ""),
+                    "chat_push_enabled": self.config.get("chat_push_enabled", False),
+                    "server_event_push_enabled": self.config.get("server_event_push_enabled", False),
+                    "llm_reply_enabled": self.config.get("llm_reply_enabled", False),
+                    "llm_reply_weight": self.config.get("llm_reply_weight", 1),
+                    "chat_rate_limit": self.config.get("chat_rate_limit", 5),
+                    "chat_rate_window": self.config.get("chat_rate_window", 60),
+                    "inbound_max_message_length": self.config.get("inbound_max_message_length", 1000),
+                    "outbound_max_message_length": self.config.get("outbound_max_message_length", 1000),
                 }
             })
         except Exception as e:
@@ -233,7 +242,10 @@ class MinecraftBridgePlugin(Star):
 
             # 更新配置
             for key in ["ws_host", "ws_port", "ws_path", "shared_token", "default_server_id",
-                        "heartbeat_timeout", "rpc_timeout", "group_id_prefix", "bridge_on"]:
+                        "heartbeat_timeout", "rpc_timeout", "group_id_prefix", "bridge_on",
+                        "minecraft_event_group", "chat_push_enabled", "server_event_push_enabled",
+                        "llm_reply_enabled", "llm_reply_weight", "chat_rate_limit", "chat_rate_window",
+                        "inbound_max_message_length", "outbound_max_message_length"]:
                 if key in payload:
                     self.config[key] = payload[key]
 
