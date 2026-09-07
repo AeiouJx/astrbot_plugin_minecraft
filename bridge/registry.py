@@ -87,6 +87,22 @@ class Registry:
         """获取所有连接元数据。"""
         return [self.get_connection_info(sid) for sid in self._conns]
 
+    def is_active_instance(self, server_id: str) -> bool:
+        """判断指定 server_id 是否为当前最活跃的实例。
+
+        当两个 ZenithProxy 实例连接同一个 MC 账号时，只有一个能进入游戏。
+        通过比较 last_seen（心跳时间）判定哪个是真正的活跃实例。
+        """
+        if len(self._conns) <= 1:
+            return True
+        conn = self._conns.get(server_id)
+        if conn is None:
+            return False
+        for sid, other in self._conns.items():
+            if sid != server_id and other.last_seen > conn.last_seen:
+                return False
+        return True
+
     @property
     def pending(self) -> protocol.PendingFuture:
         return self._pending

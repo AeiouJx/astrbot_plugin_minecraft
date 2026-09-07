@@ -466,6 +466,13 @@ class MinecraftBridgePlugin(Star):
                 event_type = item.get("event_type")
                 server_id = item.get("server_id", "default")
                 payload = item.get("data", {})
+
+                # 心跳去重：多实例时只处理最活跃实例的事件
+                registry = self.bridge.registry
+                if not registry.is_active_instance(server_id):
+                    logger.debug(f"[{server_id}] 非活跃实例, 跳过事件 {event_type}")
+                    continue
+
                 logger.info(f"[{server_id}] _consume_events: type={event_type}")
 
                 # 推送到 Dashboard
