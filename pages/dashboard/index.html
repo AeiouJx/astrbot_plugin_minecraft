@@ -96,9 +96,9 @@
       </div>
     </div>
     <div class="btn-group">
-      <button class="btn btn-primary" onclick="startWs()">Start</button>
-      <button class="btn btn-danger" onclick="stopWs()">Stop</button>
-      <button class="btn btn-outline" onclick="loadStatus()">Refresh</button>
+      <button class="btn btn-primary" id="btn-start">Start</button>
+      <button class="btn btn-danger" id="btn-stop">Stop</button>
+      <button class="btn btn-outline" id="btn-refresh">Refresh</button>
     </div>
   </div>
   
@@ -126,15 +126,15 @@
     <div class="panel">
       <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;">
         <span>💬 消息</span>
-        <button class="btn btn-outline" onclick="clearMessages()" style="padding:4px 12px;font-size:12px;">清空</button>
+        <button class="btn btn-outline" id="btn-clear" style="padding:4px 12px;font-size:12px;">清空</button>
       </div>
       <div class="panel-body">
         <div class="message-area" id="message-area">
           <div class="empty-state">选择实例查看消息</div>
         </div>
         <div class="input-row">
-          <input type="text" id="chat-input" placeholder="发送消息到 Minecraft..." onkeypress="if(event.key==='Enter')sendChat()">
-          <button class="btn btn-primary" onclick="sendChat()">发送</button>
+          <input type="text" id="chat-input" placeholder="发送消息到 Minecraft...">
+          <button class="btn btn-primary" id="btn-send">发送</button>
         </div>
       </div>
     </div>
@@ -175,123 +175,11 @@
             <input type="checkbox" id="cfg-event-push"> 启用事件推送到群
           </label>
         </div>
-        <button class="btn btn-primary" onclick="saveConfig()" style="width:100%;margin-top:8px;">保存配置</button>
+        <button class="btn btn-primary" id="btn-save-config" style="width:100%;margin-top:8px;">保存配置</button>
       </div>
     </div>
   </div>
 
-  <script src="/api/plugin/page/bridge-sdk.js"></script>
-  <script type="module">
-    const bridge = window.AstrBotPluginPage;
-
-    var instances = [];
-    var selectedInstance = null;
-    var messages = [];
-
-    async function loadStatus() {
-      try {
-        var data = await bridge.apiGet('status');
-        console.log('[mcbridge] status:', data);
-
-        document.getElementById('ws-status').textContent = data.bridge_on ? 'Running' : 'Stopped';
-        document.getElementById('listen-addr').textContent = 'ws://' + (data.ws_host || '?') + ':' + (data.ws_port || '?');
-        document.getElementById('online-count').textContent = data.online_count != null ? data.online_count : '?';
-        document.getElementById('pending-queries').textContent = data.pending_queries != null ? data.pending_queries : '?';
-
-        var sd = await bridge.apiGet('servers');
-        console.log('[mcbridge] servers:', sd);
-        instances = (sd && sd.servers) || [];
-        renderServerList();
-        renderInstanceList();
-      } catch (e) {
-        console.error('[mcbridge] loadStatus error:', e);
-      }
-    }
-
-    function renderServerList() {
-      var list = document.getElementById('server-list');
-      if (instances.length === 0) {
-        list.innerHTML = '<div class="empty-state">暂无已连接服务器</div>';
-        return;
-      }
-      list.innerHTML = instances.map(function(inst) {
-        return '<div class="server-item"><div><div class="name">' + inst.server_id + '</div><div class="meta">ZenithProxy</div></div><div class="meta">Mod: ' + (inst.mod_version || '?') + ' | Caps: ' + (inst.capabilities || []).join(', ') + '</div></div>';
-      }).join('');
-    }
-
-    function renderInstanceList() {
-      var list = document.getElementById('instance-list');
-      if (instances.length === 0) {
-        list.innerHTML = '<div class="empty-state">暂无实例</div>';
-        return;
-      }
-      list.innerHTML = instances.map(function(inst) {
-        var cls = selectedInstance === inst.server_id ? 'instance-item active' : 'instance-item';
-        return '<div class="' + cls + '" onclick="selectInstance(\'' + inst.server_id + '\')"><div class="name">' + inst.server_id + '</div><div class="detail online">● 已连接</div></div>';
-      }).join('');
-    }
-
-    function selectInstance(serverId) {
-      selectedInstance = serverId;
-      renderInstanceList();
-    }
-
-    function addMessage(msg) {
-      messages.unshift(msg);
-      if (messages.length > 50) messages.pop();
-      renderMessages();
-    }
-
-    function renderMessages() {
-      var area = document.getElementById('message-area');
-      if (messages.length === 0) {
-        area.innerHTML = '<div class="empty-state">暂无消息</div>';
-        return;
-      }
-      area.innerHTML = messages.map(function(msg) {
-        return '<div class="message-item"><div class="time"><span class="server-tag">' + msg.server_id + '</span> ' + msg.time + '</div><div class="sender">' + msg.sender + '</div><div class="content">' + msg.content + '</div></div>';
-      }).join('');
-    }
-
-    window.clearMessages = function() {
-      messages = [];
-      renderMessages();
-    };
-
-    window.sendChat = async function() {
-      var input = document.getElementById('chat-input');
-      var msg = input.value.trim();
-      if (!msg || !selectedInstance) return;
-      input.value = '';
-      addMessage({ server_id: selectedInstance, sender: 'Bot', content: msg, time: new Date().toLocaleTimeString() });
-    };
-
-    window.startWs = async function() {
-      await bridge.apiPost('start');
-      setTimeout(loadStatus, 1000);
-    };
-
-    window.stopWs = async function() {
-      await bridge.apiPost('stop');
-      setTimeout(loadStatus, 1000);
-    };
-
-    window.saveConfig = function() {
-      alert('配置已保存（需重载插件生效）');
-    };
-
-    window.selectInstance = selectInstance;
-    window.loadStatus = loadStatus;
-
-    try {
-      var ctx = await bridge.ready();
-      console.log('[mcbridge] bridge ready, context:', ctx);
-      await loadStatus();
-      setInterval(loadStatus, 5000);
-    } catch (e) {
-      console.error('[mcbridge] init error:', e);
-      document.getElementById('ws-status').textContent = 'Error';
-    }
-  </script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
