@@ -2,7 +2,7 @@ const bridge = window.AstrBotPluginPage;
 const instances = [];
 let selectedInstance = null;
 const messages = [];
-let eventSource = null;
+let sseSubscriptionId = null;
 
 async function loadStatus() {
   try {
@@ -72,22 +72,34 @@ function addMessage(msg) {
   renderMessages();
 }
 
+let sseSubscriptionId = null;
+
 function startSSE() {
-  if (eventSource) eventSource.close();
-  eventSource = new EventSource('/api/plugin/page/content/astrbot_plugin_minecraft_bridge/events?asset_token=' + new URLSearchParams(window.location.search).get('asset_token'));
-  eventSource.onmessage = function(e) {
-    try {
-      const msg = JSON.parse(e.data);
-      addMessage(msg);
-    } catch (err) {
-      console.warn('[mcbridge] SSE parse error:', err);
+  if (sseSubscriptionId) {
+    bridge.unsubscribeSSE(sseSubscriptionId);
+  }
+  bridge.subscribeSSE('events', {
+    onOpen: function() {
+      console.log('[mcbridge] SSE connected');
+    },
+    onMessage: function(event) {
+      try {
+        const msg = typeof event.parsed === 'object' ? event.parsed : JSON.parse(event.raw);
+        addMessage(msg);
+      } catch (err) {
+        console.warn('[mcbridge] SSE parse error:', err);
+      }
+    },
+    onError: function() {
+      console.warn('[mcbridge] SSE error');
     }
-  };
-  eventSource.onerror = function() {
-    console.warn('[mcbridge] SSE error, retrying...');
-    eventSource.close();
+  }).then(function(id) {
+    sseSubscriptionId = id;
+    console.log('[mcbridge] SSE subscription:', id);
+  }).catch(function(e) {
+    console.error('[mcbridge] SSE subscribe failed:', e);
     setTimeout(startSSE, 3000);
-  };
+  });
 }
 
 document.getElementById('btn-start').addEventListener('click', async function() {
