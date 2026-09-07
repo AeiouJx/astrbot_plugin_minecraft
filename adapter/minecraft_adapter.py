@@ -212,7 +212,7 @@ def _register_adapter():
                             continue
                     # 所有事件都尝试推送到群（包括聊天）
                     await self._push_event_to_group(item)
-                    # 非聊天事件也推送到 Dashboard
+                    # 所有事件都推送到 Dashboard
                     if event_type not in (EVENT_CHAT, EVENT_WHISPER):
                         cb = getattr(self.bridge, "page_push_callback", None)
                         if cb:
@@ -244,100 +244,165 @@ def _register_adapter():
             """推送游戏事件到配置的群聊。"""
             event_type = item.get("event_type")
             server_id = item.get("server_id", "default")
-            
+            payload = item.get("data", {})
+
             logger.debug(f"[{server_id}] _push_event_to_group: event_type={event_type}")
-            
-            # 检查是否启用推送
-            if event_type in (EVENT_CHAT, EVENT_WHISPER):
-                if not self.bridge.config.get("chat_push_enabled", False):
-                    logger.debug(f"[{server_id}] chat_push_enabled=False, 跳过")
-                    return
-            else:
-                if not self.bridge.config.get("server_event_push_enabled", False):
-                    logger.debug(f"[{server_id}] server_event_push_enabled=False, 跳过")
-                    return
+
+            # 检查推送开关（每事件类型独立配置）
+            push_key = f"push_{event_type}"
+            if not self.bridge.config.get(push_key, False):
+                logger.debug(f"[{server_id}] {push_key}=False, 跳过")
+                return
 
             event_group = self.bridge.config.get("minecraft_event_group", "")
             if not event_group:
                 logger.debug(f"[{server_id}] minecraft_event_group 为空, 跳过")
                 return
 
-            # 检查目标群是否在白名单中
-            if not self._is_event_group_allowed():
-                logger.debug(f"[{server_id}] 事件推送目标群 {event_group} 不在白名单中，跳过推送")
+            # 时间窗口去重：同类型事件 30 秒内不重复推送
+            import time
+            if not hasattr(self, '_qq_push_last'):
+                self._qq_push_last = {}
+            dedup_key = f"{server_id}:{event_type}"
+            now_ts = time.time()
+            last_ts = self._qq_push_last.get(dedup_key, 0)
+            if now_ts - last_ts < 30:
+                logger.debug(f"[{server_id}] {event_type} 30秒内已推送, 跳过")
                 return
+            self._qq_push_last[dedup_key] = now_ts
 
-            event_type = item.get("event_type")
-            server_id = item.get("server_id", "default")
-            payload = item.get("data", {})
+            # 获取实际 MC 账号名（优先用 account，fallback 到 server_id）
+            conn_info = self.bridge.registry.get_connection_info(server_id)
+            account = (conn_info or {}).get("account", "") or server_id
 
-            # 格式化事件消息
+            # 格式化消息（用 account 显示）
+            from datetime import datetime
+            now = datetime.now().strftime("%H:%M:%S")
             msg = None
             if event_type == EVENT_CHAT:
-                sender = payload.get("sender", "unknown")
-                message = payload.get("message", "")
-                if message:
-                    msg = f"[{server_id}] {sender}: {message}"
+                msg = f"[{now}] [{account}] {payload.get('sender', 'unknown')}: {payload.get('message', '')}"
             elif event_type == EVENT_WHISPER:
-                sender = payload.get("sender", "unknown")
-                message = payload.get("message", "")
-                receiver = payload.get("receiver", "")
-                if message and not payload.get("outgoing"):
-                    msg = f"[{server_id}] {sender} -> {receiver}: {message}"
+                if not payload.get("outgoing"):
+                    msg = f"[{now}] [{account}] {payload.get('sender', 'unknown')} -> {payload.get('receiver', '')}: {payload.get('message', '')}"
             elif event_type == EVENT_PLAYER_JOIN:
-                player = payload.get("player", "unknown")
-                msg = f"[{server_id}] 玩家 {player} 加入了游戏"
+                msg = f"[{now}] [{account}] 玩家 {payload.get('player', 'unknown')} 加入了游戏"
             elif event_type == EVENT_PLAYER_LEAVE:
-                player = payload.get("player", "unknown")
-                msg = f"[{server_id}] 玩家 {player} 离开了游戏"
+                msg = f"[{now}] [{account}] 玩家 {payload.get('player', 'unknown')} 离开了游戏"
             elif event_type == EVENT_DEATH:
-                msg = f"[{server_id}] Bot 死亡了"
+                msg = f"[{now}] [{account}] Bot 死亡了"
             elif event_type == EVENT_ACHIEVEMENT:
-                player = payload.get("player", "unknown")
-                achievement = payload.get("achievement", "未知成就")
-                msg = f"[{server_id}] 玩家 {player} 达成了成就: {achievement}"
+                msg = f"[{now}] [{account}] 玩家 {payload.get('player', 'unknown')} 达成了成就: {payload.get('achievement', '未知成就')}"
             elif event_type == EVENT_SYSTEM:
                 system_msg = payload.get("message", "")
                 if system_msg:
-                    msg = f"[{server_id}] 系统: {system_msg}"
-            elif event_type == EVENT_BOT_STATUS:
-                status = payload.get("status", "unknown")
-                bot_name = payload.get("bot_name", "")
-                msg = f"[{server_id}] [{bot_name}] 状态: {status}"
+                    msg = f"[{now}] [{account}] 系统: {system_msg}"
 
-            if msg:
+            if not msg:
+                return
+
+            # 内容过滤
+            if not self._is_safe_for_qq(msg):
+                logger.info(f"[{server_id}] 消息被内容过滤拦截: {msg[:50]}")
+                return
+
+            # 发送到 QQ 群
+            try:
+                from astrbot.api.event import MessageChain
+                from astrbot.api.message_components import Plain
+                chain = MessageChain([Plain(text=msg)])
+
+                qq_platform_id = None
+                for platform in self.bridge.context.platform_manager.platform_insts:
+                    if platform.meta().name in ("aiocqhttp", "qqofficial", "qqofficial_webhook"):
+                        qq_platform_id = platform.meta().id
+                        break
+                if not qq_platform_id:
+                    logger.warning(f"[{server_id}] 未找到 QQ 平台适配器，跳过推送")
+                    return
+
+                session = f"{qq_platform_id}:GroupMessage:{event_group}"
+                logger.info(f"[{server_id}] 尝试推送到 session={session}: {msg[:80]}")
+                await self.bridge.context.send_message(session, chain)
+                logger.info(f"[{server_id}] 已推送到群 {event_group}: {msg[:50]}...")
+            except Exception as e:
+                logger.warning(f"[{server_id}] 推送到群失败: {e}", exc_info=True)
+
+        def _is_safe_for_qq(self, msg: str) -> bool:
+            """检查消息是否适合推送到 QQ（防止触发腾讯封禁）。"""
+            if not self.bridge.config.get("qq_content_filter", True):
+                return True
+            if not msg:
+                return False
+
+            import re
+            text = msg.lower()
+
+            # 尝试从 group_guardian 词库加载（如果已安装）
+            if not hasattr(self, '_gg_matcher'):
+                self._gg_matcher = None
                 try:
-                    context = getattr(self.bridge, 'context', None)
-                    if context:
-                        # 使用 AstrBot 的消息发送能力推送到群聊
-                        from astrbot.api.message_components import Plain
-                        from astrbot.core.platform.astr_message_event import MessageChain
-                        # 构造消息链
-                        chain = MessageChain([Plain(text=msg)])
-                        # 构造 unified_msg_origin 格式
-                        # 尝试多种格式
-                        umo_formats = [
-                            f"aiocqhttp:group:{event_group}",
-                            f"qqoffical:group:{event_group}",
-                            f"onebot:group:{event_group}",
-                        ]
-                        sent = False
-                        for umo in umo_formats:
-                            try:
-                                await context.send_message(umo, chain)
-                                logger.info(f"[{server_id}] 事件推送到群 {event_group} (UMOP: {umo}): {msg}")
-                                sent = True
-                                break
-                            except Exception as e:
-                                logger.debug(f"[{server_id}] UMOP {umo} 失败: {e}")
-                        if not sent:
-                            logger.error(f"[{server_id}] 所有 UMOP 格式都失败，无法推送消息")
-                    else:
-                        logger.warning(f"[{server_id}] context 为空，无法推送事件")
-                except Exception as e:
-                    logger.error(f"[{server_id}] 事件推送失败: {e}")
-            else:
-                logger.debug(f"[{server_id}] event_type={event_type} 没有生成消息内容")
+                    import sys, os
+                    gg_path = os.path.join(
+                        os.path.dirname(os.path.dirname(__file__)),
+                        "astrbot_plugin_group_guardian"
+                    )
+                    if os.path.isdir(gg_path) and gg_path not in sys.path:
+                        sys.path.insert(0, gg_path)
+                    from automaton import KeywordAutomaton
+                    import sqlite3
+                    lexicon_db = os.path.join(gg_path, "lexicon.db")
+                    if os.path.isfile(lexicon_db):
+                        conn = sqlite3.connect(lexicon_db)
+                        rows = conn.execute("SELECT keyword FROM lexicon_keywords").fetchall()
+                        conn.close()
+                        if rows:
+                            auto = KeywordAutomaton()
+                            auto.add_keywords([r[0] for r in rows if r[0]])
+                            self._gg_matcher = auto
+                except Exception:
+                    pass
+
+            # 使用 group_guardian 词库检测
+            if self._gg_matcher is not None:
+                if self._gg_matcher.first_match(text):
+                    return False
+
+            # 内置高风险正则
+            _BUILTIN_BLOCKED = [
+                r"习近平|毛泽东|共产党|国民党|六四|天安门|法轮功|达赖|台独|藏独|疆独",
+                r"翻墙|VPN|科学上网|shadowsocks|v2ray|trojan",
+                r"赌博|博彩|彩票|百家乐|太阳城|网赌|赌球|赌马|外围|庄家|赔率",
+                r"色情|黄片|约炮|一夜情|援交|裸聊|自慰|阴茎|阴道|性交|做爱",
+                r"刷单|兼职|日赚|月入|稳赚|保本|高回报|传销|庞氏|资金盘",
+                r"冰毒|大麻|海洛因|摇头丸|K粉|可卡因|吸毒|贩毒|制毒",
+                r"自杀|自残|上吊|跳楼|割腕|安眠药",
+                r"枪支|炸药|炸弹|管制刀具|雷管",
+                r"加微信|加QQ|扫码|免费领|点击链接|转账|红包返利",
+            ]
+
+            for pattern in _BUILTIN_BLOCKED:
+                if re.search(pattern, text):
+                    return False
+
+            # 检测 [] 括号内的内容
+            bracket_contents = re.findall(r'\[([^\]]+)\]', msg)
+            for content in bracket_contents:
+                content_lower = content.lower()
+                for pattern in _BUILTIN_BLOCKED:
+                    if re.search(pattern, content_lower):
+                        return False
+                custom_words = self.bridge.config.get("qq_blocked_words", [])
+                for word in custom_words:
+                    if word and word.lower() in content_lower:
+                        return False
+
+            # 自定义违禁词
+            custom_words = self.bridge.config.get("qq_blocked_words", [])
+            for word in custom_words:
+                if word and word.lower() in text:
+                    return False
+
+            return True
 
         def _should_llm_reply(self) -> bool:
             """根据权重判断是否触发 LLM 回复。"""
