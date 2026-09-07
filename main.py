@@ -460,12 +460,26 @@ class MinecraftBridgePlugin(Star):
             EVENT_PLAYER_JOIN, EVENT_PLAYER_LEAVE,
             EVENT_DEATH, EVENT_ACHIEVEMENT, EVENT_BOT_STATUS,
         )
+        if not hasattr(self, '_account_map'):
+            self._account_map = {}  # config_server_id -> actual_mc_account
         while True:
             try:
                 item = await self.bridge.event_queue.get()
                 event_type = item.get("event_type")
                 server_id = item.get("server_id", "default")
                 payload = item.get("data", {})
+
+                # 动态账号映射：从 join/leave 事件检测实际 MC 账号名
+                if event_type in (EVENT_PLAYER_JOIN, EVENT_PLAYER_LEAVE):
+                    player = payload.get("player", "")
+                    if player and player != server_id:
+                        self._account_map[server_id] = player
+                        logger.info(f"[{server_id}] 动态映射: {server_id} -> {player}")
+
+                # 用实际账号名替换 server_id
+                if server_id in self._account_map:
+                    server_id = self._account_map[server_id]
+
                 logger.info(f"[{server_id}] _consume_events: type={event_type}")
 
                 # 推送到 Dashboard
