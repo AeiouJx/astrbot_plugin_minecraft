@@ -180,27 +180,32 @@
     </div>
   </div>
 
+  <script src="/api/plugin/page/bridge-sdk.js"></script>
   <script>
+    let bridge;
     let instances = [];
     let selectedInstance = null;
     let messages = [];
     
+    async function init() {
+      bridge = await window.__BRIDGE_READY__;
+      loadStatus();
+      setInterval(loadStatus, 5000);
+    }
+    
     async function loadStatus() {
       try {
-        const resp = await fetch('/astrbot_plugin_minecraft_bridge/status');
-        const json = await resp.json();
-        const data = json.data || {};
+        const data = await bridge.apiGet('status');
+        const status = data.data || {};
         
-        document.getElementById('ws-status').textContent = data.bridge_on ? 'Running' : 'Stopped';
-        document.getElementById('ws-status').className = `value ${data.bridge_on ? 'running' : 'stopped'}`;
-        document.getElementById('listen-addr').textContent = `ws://${data.ws_host || '0.0.0.0'}:${data.ws_port || 8765}`;
-        document.getElementById('online-count').textContent = data.online_count || 0;
-        document.getElementById('pending-queries').textContent = data.pending_queries || 0;
+        document.getElementById('ws-status').textContent = status.bridge_on ? 'Running' : 'Stopped';
+        document.getElementById('ws-status').className = `value ${status.bridge_on ? 'running' : 'stopped'}`;
+        document.getElementById('listen-addr').textContent = `ws://${status.ws_host || '0.0.0.0'}:${status.ws_port || 8765}`;
+        document.getElementById('online-count').textContent = status.online_count || 0;
+        document.getElementById('pending-queries').textContent = status.pending_queries || 0;
         
-        // 加载服务器详情
-        const serversResp = await fetch('/astrbot_plugin_minecraft_bridge/servers');
-        const serversJson = await serversResp.json();
-        instances = serversJson.data || [];
+        const serversData = await bridge.apiGet('servers');
+        instances = serversData.data || [];
         
         renderServerList();
         renderInstanceList();
@@ -280,12 +285,12 @@
     }
     
     async function startWs() {
-      await fetch('/astrbot_plugin_minecraft_bridge/start', { method: 'POST' });
+      await bridge.apiPost('start');
       setTimeout(loadStatus, 1000);
     }
     
     async function stopWs() {
-      await fetch('/astrbot_plugin_minecraft_bridge/stop', { method: 'POST' });
+      await bridge.apiPost('stop');
       setTimeout(loadStatus, 1000);
     }
     
@@ -293,8 +298,7 @@
       alert('配置已保存（需重载插件生效）');
     }
     
-    loadStatus();
-    setInterval(loadStatus, 5000);
+    init();
   </script>
 </body>
 </html>
