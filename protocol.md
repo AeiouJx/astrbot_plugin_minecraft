@@ -1,7 +1,6 @@
 # Minecraft ↔ AstrBot WebSocket 通讯协议
 
 > 中立协议文档,供 ZenithProxy(游戏端)与 AstrBot(中枢端)两端共同遵守,用于两侧对接沟通。
-> 配合文档:`minecraft_design.md`(ZenithProxy 端设计)、`astrbot_design.md`(AstrBot 端设计)。
 
 ## 1. 角色与连接
 
