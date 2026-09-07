@@ -583,7 +583,37 @@ class MinecraftBridgePlugin(Star):
         import re
         text = msg.lower()
 
-        # 内置敏感词库（政治、色情、赌博、诈骗等高风险词）
+        # 尝试从 group_guardian 词库加载（如果已安装）
+        if not hasattr(self, '_gg_matcher'):
+            self._gg_matcher = None
+            try:
+                import sys, os
+                gg_path = os.path.join(
+                    os.path.dirname(os.path.dirname(__file__)),
+                    "astrbot_plugin_group_guardian"
+                )
+                if os.path.isdir(gg_path) and gg_path not in sys.path:
+                    sys.path.insert(0, gg_path)
+                from automaton import KeywordAutomaton
+                import sqlite3
+                lexicon_db = os.path.join(gg_path, "lexicon.db")
+                if os.path.isfile(lexicon_db):
+                    conn = sqlite3.connect(lexicon_db)
+                    rows = conn.execute("SELECT keyword FROM lexicon_keywords").fetchall()
+                    conn.close()
+                    if rows:
+                        auto = KeywordAutomaton()
+                        auto.add_keywords([r[0] for r in rows if r[0]])
+                        self._gg_matcher = auto
+            except Exception:
+                pass
+
+        # 使用 group_guardian 词库检测
+        if self._gg_matcher is not None:
+            if self._gg_matcher.first_match(text):
+                return False
+
+        # 内置高风险正则（group_guardian 未覆盖时的兜底）
         _BUILTIN_BLOCKED = [
             # 政治敏感
             r"习近平|毛泽东|共产党|国民党|六四|天安门|法轮功|达赖|台独|藏独|疆独",
@@ -591,15 +621,17 @@ class MinecraftBridgePlugin(Star):
             # 赌博
             r"赌博|博彩|彩票|百家乐|太阳城|网赌|赌球|赌马|外围|庄家|赔率",
             # 色情
-            r"色情|黄片|AV|约炮|一夜情|援交|裸聊|自慰|阴茎|阴道|乳房|性交|做爱",
+            r"色情|黄片|约炮|一夜情|援交|裸聊|自慰|阴茎|阴道|性交|做爱",
             # 诈骗
             r"刷单|兼职|日赚|月入|稳赚|保本|高回报|传销|庞氏|资金盘",
             # 毒品
             r"冰毒|大麻|海洛因|摇头丸|K粉|可卡因|吸毒|贩毒|制毒",
-            # 暴力
+            # 暴力/自杀
             r"自杀|自残|上吊|跳楼|割腕|安眠药",
-            # 其他高风险
+            # 涉枪涉爆
             r"枪支|炸药|炸弹|管制刀具|雷管",
+            # 腾讯封禁高风险
+            r"加微信|加QQ|扫码|免费领|点击链接|转账|红包返利",
         ]
 
         for pattern in _BUILTIN_BLOCKED:
