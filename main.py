@@ -473,8 +473,15 @@ class MinecraftBridgePlugin(Star):
                 if event_type in (EVENT_PLAYER_JOIN, EVENT_PLAYER_LEAVE):
                     player = payload.get("player", "")
                     if player and player != server_id:
-                        self._account_map[server_id] = player
-                        logger.info(f"[{server_id}] 动态映射: {server_id} -> {player}")
+                        old_id = server_id
+                        self._account_map[old_id] = player
+                        # 同步更新 registry：旧 key -> 新 key
+                        conn = self.bridge.registry.get(old_id)
+                        if conn:
+                            conn.server_id = player
+                            self.bridge.registry._conns.pop(old_id, None)
+                            self.bridge.registry._conns[player] = conn
+                        logger.info(f"[{old_id}] 动态映射: {old_id} -> {player}")
 
                 # 用实际账号名替换 server_id
                 if server_id in self._account_map:
