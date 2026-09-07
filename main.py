@@ -316,9 +316,101 @@ class MinecraftBridgePlugin(Star):
         if self._bridge_on:
             self.bridge.start()
             logger.info("Minecraft Bridge 插件已加载 (自动启动 WS 服务)")
+        # 自动注册平台适配器（参照 mineastr-plugin 模式）
+        try:
+            await self._ensure_platform()
+        except Exception as exc:
+            logger.warning(f"自动注册 minecraft_bridge 平台失败: {exc}")
         # 启动后台事件消费任务（不依赖 AstrBot 启动适配器）
         self._event_consumer_task = asyncio.create_task(self._consume_events())
         logger.info("后台事件消费任务已启动")
+
+    async def _ensure_platform(self):
+        """确保 minecraft_bridge 平台已注册并启用（参照 mineastr-plugin）。"""
+        PLATFORM_TYPE = "minecraft_bridge"
+        PLATFORM_ID = "minecraft_bridge"
+
+        manager = getattr(self.context, "platform_manager", None)
+        if manager is None:
+            logger.debug("platform_manager 不可用，跳过平台自动注册")
+            return
+
+        # 检查是否已有运行中的实例
+        for inst in getattr(manager, "platform_insts", None) or []:
+            meta = getattr(inst, "meta", None)
+            if callable(meta) and getattr(meta(), "id", None) == PLATFORM_ID:
+                logger.info(f"minecraft_bridge 平台已在运行 (id={PLATFORM_ID})")
+                return
+
+        # 获取 AstrBot 主配置
+        get_config = getattr(self.context, "get_config", None)
+        if not callable(get_config):
+            logger.debug("Context 不支持 get_config，跳过平台自动注册")
+            return
+        core_config = get_config()
+        platforms = core_config.get("platform")
+        if not isinstance(platforms, list):
+            logger.debug("主配置 platform 不是列表，跳过")
+            return
+
+        # 查找已有的 minecraft_bridge 平台配置
+        candidates = [
+            entry for entry in platforms
+            if isinstance(entry, dict) and entry.get("type") == PLATFORM_TYPE
+        ]
+
+        selected = None
+        created = False
+        if candidates:
+            selected = candidates[0]
+        else:
+            # 创建新的平台配置
+            selected = {
+                "type": PLATFORM_TYPE,
+                "id": PLATFORM_ID,
+                "enable": True,
+                "host": self.bridge.config.get("ws_host", "0.0.0.0"),
+                "port": self.bridge.config.get("ws_port", 8765),
+                "path": self.bridge.config.get("ws_path", "/ws"),
+                "token": self.bridge.config.get("shared_token", "change-me"),
+            }
+            platforms.append(selected)
+            created = True
+
+        # 确保启用
+        if not selected.get("enable"):
+            selected["enable"] = True
+
+        # 保存配置
+        save_config = getattr(core_config, "save_config", None)
+        if callable(save_config):
+            try:
+                saved = save_config()
+                import inspect
+                if inspect.isawaitable(saved):
+                    await saved
+            except Exception as exc:
+                if created:
+                    platforms.remove(selected)
+                raise RuntimeError(f"保存平台配置失败: {exc}") from exc
+
+        # 热加载平台（如果管理器已初始化）
+        instances = getattr(manager, "platform_insts", None)
+        tasks = getattr(manager, "_platform_tasks", None)
+        manager_initialized = (isinstance(instances, list) and instances) or bool(tasks)
+
+        if manager_initialized:
+            import inspect
+            reload_fn = getattr(manager, "reload", None) or getattr(manager, "load_platform", None)
+            if callable(reload_fn):
+                result = reload_fn(selected)
+                if inspect.isawaitable(result):
+                    await result
+                logger.info(f"minecraft_bridge 平台已热加载 (id={PLATFORM_ID})")
+            else:
+                logger.warning("平台管理器不支持 reload/load_platform")
+        else:
+            logger.info(f"minecraft_bridge 平台已注册，等待 AstrBot 启动 (id={PLATFORM_ID})")
 
     async def _consume_events(self):
         """后台消费 event_queue，推送事件到 Dashboard 和 QQ 群。"""
