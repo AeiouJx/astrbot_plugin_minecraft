@@ -8,12 +8,12 @@
 @filter.llm_tool 必须在 Star 子类方法上使用（import 时自注册），
 工具业务逻辑见 tools/mc_tools.py。
 """
+from __future__ import annotations
+
 import asyncio
 import collections
 import json
 import time
-
-from __future__ import annotations
 
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star
