@@ -95,11 +95,12 @@ MIT
 
 ### 2026-09-07
 
-- **Dashboard 配置面板修复**: `_api_get_config` 现在返回 QQ 推送相关配置项（`minecraft_event_group`, `chat_push_enabled`, `server_event_push_enabled` 等）；Dashboard 加载时自动填充表单；保存按钮真正调用 API 保存配置
-- **保存配置不再断开连接**: 只有 WS 相关配置（host/port/path/token）变更时才重启 bridge，QQ 推送等配置变更不会触发重启
-- **平台自动注册**: 插件启动时自动将 `minecraft_bridge` 注册为 AstrBot 活跃平台（`_ensure_platform()`）
-- **后台事件消费**: 在 `initialize()` 中启动 `_consume_events()` 任务，直接从 `event_queue` 读取事件推送到 Dashboard 和 QQ，不依赖 adapter `run()` 被调用
-- **调试日志**: registry `_dispatch_event` 和 adapter 添加详细日志，便于排查事件流转问题
+- **QQ 群推送修复**: 使用 AstrBot `MessageSesion` 格式 (`{platform_id}:GroupMessage:{group_id}`) 调用 `context.send_message()`，正确找到 QQ 平台适配器并推送消息
+- **Dashboard 实例消息分离**: 选择哪个 BOT 实例就显示哪个实例的消息，默认选中第一个实例
+- **Dashboard 配置面板修复**: `_api_get_config` 返回 QQ 推送相关配置项；加载时自动填充表单；保存按钮真正调用 API 保存配置
+- **保存配置不再断开连接**: 只有 WS 相关配置变更时才重启 bridge
+- **平台自动注册**: 插件启动时自动注册 `minecraft_bridge` 平台
+- **后台事件消费**: `_consume_events()` 直接从 `event_queue` 读取事件推送到 Dashboard 和 QQ
 
 ### 2026-09-06
 
