@@ -527,10 +527,22 @@ class MinecraftBridgePlugin(Star):
         try:
             from astrbot.api.event import MessageChain
             from astrbot.api.message_components import Plain
+            from astrbot.core.platform.message_type import MessageType
             chain = MessageChain([Plain(text=msg)])
-            platform_id = f"aiocqhttp:group:{event_group}"
-            logger.info(f"[{server_id}] 尝试推送到 {platform_id}: {msg[:80]}")
-            await self.context.send_message(platform_id, chain)
+
+            # 找到 QQ 平台适配器的 platform_id
+            qq_platform_id = None
+            for platform in self.context.platform_manager.platform_insts:
+                if platform.meta().name in ("aiocqhttp", "qqofficial", "qqofficial_webhook"):
+                    qq_platform_id = platform.meta().id
+                    break
+            if not qq_platform_id:
+                logger.warning(f"[{server_id}] 未找到 QQ 平台适配器，跳过推送")
+                return
+
+            session = f"{qq_platform_id}:GroupMessage:{event_group}"
+            logger.info(f"[{server_id}] 尝试推送到 session={session}: {msg[:80]}")
+            await self.context.send_message(session, chain)
             logger.info(f"[{server_id}] 已推送到群 {event_group}: {msg[:50]}...")
         except Exception as e:
             logger.warning(f"[{server_id}] 推送到群失败: {e}", exc_info=True)
