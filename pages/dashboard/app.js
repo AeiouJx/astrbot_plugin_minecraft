@@ -36,8 +36,7 @@ function renderTabs() {
   }
   let html = '<button class="tab' + (!selectedInstance ? ' active' : '') + '" data-id="">全部</button>';
   instances.forEach(function(inst) {
-    const label = inst.account || inst.server_id;
-    html += '<button class="tab' + (selectedInstance === inst.server_id ? ' active' : '') + '" data-id="' + inst.server_id + '">' + esc(label) + '</button>';
+    html += '<button class="tab' + (selectedInstance === inst.server_id ? ' active' : '') + '" data-id="' + inst.server_id + '">' + esc(inst.server_id) + '</button>';
   });
   tabs.innerHTML = html;
   tabs.querySelectorAll('.tab').forEach(function(btn) {
@@ -63,11 +62,10 @@ function renderChat() {
   area.innerHTML = filtered.map(function(msg) {
     const time = msg.timestamp ? formatTs(msg.timestamp) : msg.time;
     const type = msg.type || 'chat';
-    const label = msg.account || msg.server_id;
     if (type === 'chat') {
-      return '<div class="msg-card chat"><div class="msg-header"><span class="server-tag">' + esc(label) + '</span><span class="msg-time">' + time + '</span></div><div class="msg-sender">' + esc(msg.sender) + '</div><div class="msg-content">' + esc(msg.content) + '</div></div>';
+      return '<div class="msg-card chat"><div class="msg-header"><span class="server-tag">' + esc(msg.server_id) + '</span><span class="msg-time">' + time + '</span></div><div class="msg-sender">' + esc(msg.sender) + '</div><div class="msg-content">' + esc(msg.content) + '</div></div>';
     } else {
-      return '<div class="msg-card ' + type + '"><div class="msg-header"><span class="server-tag">' + esc(label) + '</span><span class="msg-time">' + time + '</span></div><div class="msg-content">' + esc(msg.content) + '</div></div>';
+      return '<div class="msg-card ' + type + '"><div class="msg-header"><span class="server-tag">' + esc(msg.server_id) + '</span><span class="msg-time">' + time + '</span></div><div class="msg-content">' + esc(msg.content) + '</div></div>';
     }
   }).join('');
   // 只有用户在底部时才自动滚到底部
