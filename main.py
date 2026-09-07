@@ -542,6 +542,11 @@ class MinecraftBridgePlugin(Star):
         if not msg:
             return
 
+        # 内容过滤
+        if not self._is_safe_for_qq(msg):
+            logger.info(f"[{server_id}] 消息被内容过滤拦截: {msg[:50]}")
+            return
+
         # 发送到 QQ 群
         try:
             from astrbot.api.event import MessageChain
@@ -565,6 +570,47 @@ class MinecraftBridgePlugin(Star):
             logger.info(f"[{server_id}] 已推送到群 {event_group}: {msg[:50]}...")
         except Exception as e:
             logger.warning(f"[{server_id}] 推送到群失败: {e}", exc_info=True)
+
+    def _is_safe_for_qq(self, msg: str) -> bool:
+        """检查消息是否适合推送到 QQ（防止触发腾讯封禁）。"""
+        if not self.bridge.config.get("qq_content_filter", True):
+            return True
+        if not msg:
+            return False
+
+        import re
+        text = msg.lower()
+
+        # 内置敏感词库（政治、色情、赌博、诈骗等高风险词）
+        _BUILTIN_BLOCKED = [
+            # 政治敏感
+            r"习近平|毛泽东|共产党|国民党|六四|天安门|法轮功|达赖|台独|藏独|疆独",
+            r"翻墙|VPN|科学上网|shadowsocks|v2ray|trojan",
+            # 赌博
+            r"赌博|博彩|彩票|百家乐|太阳城|网赌|赌球|赌马|外围|庄家|赔率",
+            # 色情
+            r"色情|黄片|AV|约炮|一夜情|援交|裸聊|自慰|阴茎|阴道|乳房|性交|做爱",
+            # 诈骗
+            r"刷单|兼职|日赚|月入|稳赚|保本|高回报|传销|庞氏|资金盘",
+            # 毒品
+            r"冰毒|大麻|海洛因|摇头丸|K粉|可卡因|吸毒|贩毒|制毒",
+            # 暴力
+            r"自杀|自残|上吊|跳楼|割腕|安眠药",
+            # 其他高风险
+            r"枪支|炸药|炸弹|管制刀具|雷管",
+        ]
+
+        for pattern in _BUILTIN_BLOCKED:
+            if re.search(pattern, text):
+                return False
+
+        # 自定义违禁词
+        custom_words = self.bridge.config.get("qq_blocked_words", [])
+        for word in custom_words:
+            if word and word.lower() in text:
+                return False
+
+        return True
 
     async def terminate(self):
         """插件卸载/停用时清理。"""
