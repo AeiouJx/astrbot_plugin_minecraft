@@ -71,6 +71,9 @@ class MinecraftBridgePlugin(Star):
         self._page_messages: collections.deque = collections.deque(maxlen=200)
         self._page_sse_subscribers: list = []
 
+        # 后台事件消费任务（不依赖 AstrBot 启动适配器）
+        self._event_consumer_task = None
+
         # 注册 Web API 端点
         self._register_web_apis()
 
@@ -313,9 +316,119 @@ class MinecraftBridgePlugin(Star):
         if self._bridge_on:
             self.bridge.start()
             logger.info("Minecraft Bridge 插件已加载 (自动启动 WS 服务)")
+        # 启动后台事件消费任务（不依赖 AstrBot 启动适配器）
+        self._event_consumer_task = asyncio.create_task(self._consume_events())
+        logger.info("后台事件消费任务已启动")
+
+    async def _consume_events(self):
+        """后台消费 event_queue，推送事件到 Dashboard 和 QQ 群。"""
+        from .bridge.protocol import (
+            EVENT_CHAT, EVENT_WHISPER, EVENT_SYSTEM,
+            EVENT_PLAYER_JOIN, EVENT_PLAYER_LEAVE,
+            EVENT_DEATH, EVENT_ACHIEVEMENT, EVENT_BOT_STATUS,
+        )
+        while True:
+            try:
+                item = await self.bridge.event_queue.get()
+                event_type = item.get("event_type")
+                server_id = item.get("server_id", "default")
+                payload = item.get("data", {})
+                logger.info(f"[{server_id}] _consume_events: type={event_type}")
+
+                # 推送到 Dashboard
+                cb = self.bridge.page_push_callback
+                if cb:
+                    if event_type == EVENT_CHAT:
+                        cb(server_id, payload.get("sender", ""), payload.get("message", ""))
+                    elif event_type == EVENT_WHISPER:
+                        cb(server_id, payload.get("sender", ""), f"[私聊→{payload.get('receiver', '')}] {payload.get('message', '')}")
+                    elif event_type == EVENT_PLAYER_JOIN:
+                        cb(server_id, "System", f"{payload.get('player', '')} 加入了游戏")
+                    elif event_type == EVENT_PLAYER_LEAVE:
+                        cb(server_id, "System", f"{payload.get('player', '')} 离开了游戏")
+                    elif event_type == EVENT_DEATH:
+                        cb(server_id, "System", payload.get("death_message", payload.get("message", "Bot 死亡了")))
+                    elif event_type == EVENT_ACHIEVEMENT:
+                        cb(server_id, "System", f"{payload.get('player', '')} 达成成就: {payload.get('achievement', '')}")
+                    elif event_type == EVENT_SYSTEM:
+                        cb(server_id, "System", payload.get("message", ""))
+                    elif event_type == EVENT_BOT_STATUS:
+                        cb(server_id, "System", f"[{payload.get('bot_name', '')}] 状态: {payload.get('status', '')}")
+
+                # 推送到 QQ 群
+                await self._push_event_to_group(item)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"事件消费异常: {e}")
+                await asyncio.sleep(1)
+
+    async def _push_event_to_group(self, item: dict):
+        """推送事件到配置的 QQ 群。"""
+        from .bridge.protocol import (
+            EVENT_CHAT, EVENT_WHISPER, EVENT_SYSTEM,
+            EVENT_PLAYER_JOIN, EVENT_PLAYER_LEAVE,
+            EVENT_DEATH, EVENT_ACHIEVEMENT,
+        )
+        event_type = item.get("event_type")
+        server_id = item.get("server_id", "default")
+        payload = item.get("data", {})
+
+        # 检查推送开关
+        if event_type in (EVENT_CHAT, EVENT_WHISPER):
+            if not self.bridge.config.get("chat_push_enabled", False):
+                return
+        else:
+            if not self.bridge.config.get("server_event_push_enabled", False):
+                return
+
+        event_group = self.bridge.config.get("minecraft_event_group", "")
+        if not event_group:
+            return
+
+        # 格式化消息
+        msg = None
+        if event_type == EVENT_CHAT:
+            msg = f"[{server_id}] {payload.get('sender', 'unknown')}: {payload.get('message', '')}"
+        elif event_type == EVENT_WHISPER:
+            if not payload.get("outgoing"):
+                msg = f"[{server_id}] {payload.get('sender', 'unknown')} -> {payload.get('receiver', '')}: {payload.get('message', '')}"
+        elif event_type == EVENT_PLAYER_JOIN:
+            msg = f"[{server_id}] 玩家 {payload.get('player', 'unknown')} 加入了游戏"
+        elif event_type == EVENT_PLAYER_LEAVE:
+            msg = f"[{server_id}] 玩家 {payload.get('player', 'unknown')} 离开了游戏"
+        elif event_type == EVENT_DEATH:
+            msg = f"[{server_id}] Bot 死亡了"
+        elif event_type == EVENT_ACHIEVEMENT:
+            msg = f"[{server_id}] 玩家 {payload.get('player', 'unknown')} 达成了成就: {payload.get('achievement', '未知成就')}"
+        elif event_type == EVENT_SYSTEM:
+            system_msg = payload.get("message", "")
+            if system_msg:
+                msg = f"[{server_id}] 系统: {system_msg}"
+
+        if not msg:
+            return
+
+        # 发送到 QQ 群
+        try:
+            platform_id = f"aiocqhttp:group:{event_group}"
+            await self.context.send_message(
+                platform_id=platform_id,
+                message=msg,
+            )
+            logger.info(f"[{server_id}] 已推送到群 {event_group}: {msg[:50]}...")
+        except Exception as e:
+            logger.warning(f"[{server_id}] 推送到群失败: {e}")
 
     async def terminate(self):
         """插件卸载/停用时清理。"""
+        if self._event_consumer_task:
+            self._event_consumer_task.cancel()
+            try:
+                await self._event_consumer_task
+            except asyncio.CancelledError:
+                pass
         await self.bridge.stop()
         # 清理运行时状态，避免重载时端口冲突
         from .bridge import runtime_state
