@@ -23,7 +23,10 @@ from astrbot.api.message_components import Plain
 from astrbot.core.platform.message_session import MessageSesion
 
 from ..bridge import BridgeManager
-from ..bridge.protocol import EVENT_CHAT, EVENT_WHISPER
+from ..bridge.protocol import (
+    EVENT_CHAT, EVENT_WHISPER, EVENT_SYSTEM, EVENT_PLAYER_JOIN,
+    EVENT_PLAYER_LEAVE, EVENT_BOT_STATUS, EVENT_DEATH, EVENT_ACHIEVEMENT,
+)
 from .minecraft_event import MinecraftEvent
 
 
@@ -214,18 +217,22 @@ def _register_adapter():
                         if cb:
                             payload = item.get("data", {})
                             player = payload.get("player", "")
-                            if event_type == "player_join":
+                            if event_type == EVENT_PLAYER_JOIN:
                                 cb(item.get("server_id", ""), "System", f"{player} 加入了游戏")
-                            elif event_type == "player_leave":
+                            elif event_type == EVENT_PLAYER_LEAVE:
                                 cb(item.get("server_id", ""), "System", f"{player} 离开了游戏")
-                            elif event_type == "death":
+                            elif event_type == EVENT_DEATH:
                                 death_msg = payload.get("death_message", payload.get("message", ""))
-                                cb(item.get("server_id", ""), "System", death_msg)
-                            elif event_type == "achievement":
+                                cb(item.get("server_id", ""), "System", death_msg or "Bot 死亡了")
+                            elif event_type == EVENT_ACHIEVEMENT:
                                 ach = payload.get("achievement", "")
                                 cb(item.get("server_id", ""), "System", f"{player} 达成成就: {ach}")
-                            elif event_type == "system":
+                            elif event_type == EVENT_SYSTEM:
                                 cb(item.get("server_id", ""), "System", payload.get("message", ""))
+                            elif event_type == EVENT_BOT_STATUS:
+                                status = payload.get("status", "unknown")
+                                bot_name = payload.get("bot_name", "")
+                                cb(item.get("server_id", ""), "System", f"[{bot_name}] 状态: {status}")
                         logger.debug(f"收到事件: {event_type}")
                 except asyncio.CancelledError:
                     break
@@ -240,7 +247,7 @@ def _register_adapter():
             logger.debug(f"[{server_id}] _push_event_to_group: event_type={event_type}")
             
             # 检查是否启用推送
-            if event_type in ("chat", "whisper"):
+            if event_type in (EVENT_CHAT, EVENT_WHISPER):
                 if not self.bridge.config.get("chat_push_enabled", False):
                     logger.debug(f"[{server_id}] chat_push_enabled=False, 跳过")
                     return
@@ -265,33 +272,37 @@ def _register_adapter():
 
             # 格式化事件消息
             msg = None
-            if event_type == "chat":
+            if event_type == EVENT_CHAT:
                 sender = payload.get("sender", "unknown")
                 message = payload.get("message", "")
                 if message:
                     msg = f"[{server_id}] {sender}: {message}"
-            elif event_type == "whisper":
+            elif event_type == EVENT_WHISPER:
                 sender = payload.get("sender", "unknown")
                 message = payload.get("message", "")
                 receiver = payload.get("receiver", "")
                 if message and not payload.get("outgoing"):
                     msg = f"[{server_id}] {sender} -> {receiver}: {message}"
-            elif event_type == "player_join":
+            elif event_type == EVENT_PLAYER_JOIN:
                 player = payload.get("player", "unknown")
                 msg = f"[{server_id}] 玩家 {player} 加入了游戏"
-            elif event_type == "player_leave":
+            elif event_type == EVENT_PLAYER_LEAVE:
                 player = payload.get("player", "unknown")
                 msg = f"[{server_id}] 玩家 {player} 离开了游戏"
-            elif event_type == "death":
+            elif event_type == EVENT_DEATH:
                 msg = f"[{server_id}] Bot 死亡了"
-            elif event_type == "achievement":
+            elif event_type == EVENT_ACHIEVEMENT:
                 player = payload.get("player", "unknown")
                 achievement = payload.get("achievement", "未知成就")
                 msg = f"[{server_id}] 玩家 {player} 达成了成就: {achievement}"
-            elif event_type == "system":
+            elif event_type == EVENT_SYSTEM:
                 system_msg = payload.get("message", "")
                 if system_msg:
                     msg = f"[{server_id}] 系统: {system_msg}"
+            elif event_type == EVENT_BOT_STATUS:
+                status = payload.get("status", "unknown")
+                bot_name = payload.get("bot_name", "")
+                msg = f"[{server_id}] [{bot_name}] 状态: {status}"
 
             if msg:
                 try:
