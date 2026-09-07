@@ -146,6 +146,7 @@ class Registry:
     def handle_data_message(self, server_id: str, data: dict) -> None:
         """处理来自连接的业务数据帧（event / task_result / query_result）。"""
         msg_type = data.get("type")
+        logger.debug(f"[{server_id}] handle_data_message: type={msg_type}, keys={list(data.keys())}")
         if msg_type == protocol.MSG_EVENT:
             self._dispatch_event(server_id, data)
         elif msg_type == protocol.MSG_TASK_RESULT:
@@ -173,7 +174,9 @@ class Registry:
         event_type = data.get("event_type")
         event_payload = data.get("data", {})
         if not event_type:
+            logger.warning(f"[{server_id}] _dispatch_event: missing event_type in data={list(data.keys())}")
             return
+        logger.info(f"[{server_id}] _dispatch_event: event_type={event_type}, payload_keys={list(event_payload.keys()) if isinstance(event_payload, dict) else type(event_payload)}")
         try:
             self.event_queue.put_nowait({
                 "server_id": server_id,

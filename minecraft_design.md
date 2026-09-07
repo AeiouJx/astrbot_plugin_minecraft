@@ -288,3 +288,83 @@ Java 端需要实现：
   "timestamp": 1693123456
 }
 ```
+
+## 8. 事件推送实现检查清单（ZenithProxy Java 端）
+
+**这是 AstrBot Dashboard 实时显示的前提条件。** ZenithProxy 必须主动把 Minecraft 游戏事件通过 WS 推送到 AstrBot。
+
+### 8.1 必须实现的事件推送
+
+| 事件 | event_type | data 字段 | 触发时机 |
+|---|---|---|---|
+| 公共聊天 | `chat` | `sender`(string), `message`(string) | 任何玩家在公共频道发言 |
+| 私聊 | `whisper` | `outgoing`(bool), `sender`(string), `receiver`(string), `message`(string) | 私聊消息 |
+| 玩家加入 | `player_join` | `player`(string) | 玩家加入服务器 |
+| 玩家离开 | `player_leave` | `player`(string) | 玩家离开服务器 |
+| 系统消息 | `system` | `message`(string) | 服务器系统消息（如成就、命令反馈） |
+| Bot 死亡 | `death` | `death_message`(string, 可选) | Bot 实体死亡 |
+| 成就 | `achievement` | `player`(string), `achievement`(string) | 玩家获得成就 |
+
+### 8.2 消息格式
+
+所有事件必须用以下格式通过 WS 发送 JSON 文本帧：
+
+```json
+{
+  "type": "event",
+  "event_type": "chat",
+  "data": {
+    "sender": "huayan666",
+    "message": "你好"
+  },
+  "timestamp": 1693123456
+}
+```
+
+**关键要求**：
+- `type` 必须是 `"event"`（不是 `"chat"` 或其他）
+- `event_type` 必须是上述表格中的值
+- `data` 必须是对象，包含对应的字段
+- `timestamp` 建议带上（秒级 Unix 时间戳）
+
+### 8.3 常见问题排查
+
+**Q: AstrBot Dashboard 显示 "Connected Servers: 0"**
+- 检查 ZenithProxy 是否发送了 `hello` 握手消息
+- 检查 `Authorization: Bearer {TOKEN}` 头是否正确
+
+**Q: Dashboard 显示 Connected Servers 但消息区域空白**
+- ZenithProxy 可能没有实现事件推送（只实现了 hello/heartbeat/task/query）
+- 检查 ZenithProxy 是否监听了 Minecraft 的 `ChatReceivedEvent`、`PlayerJoinEvent`、`PlayerLeaveEvent` 等事件
+- 检查推送的消息格式是否符合 8.2 节规范
+
+**Q: AstrBot 日志中看到 "handle_data_message" 但没有 "chat"**
+- 事件到达了但 event_type 不对，检查 ZenithProxy 发送的 event_type 值
+
+**Q: AstrBot 日志中没有任何事件日志**
+- ZenithProxy 没有发送事件，检查 Java 端事件监听代码
+
+### 8.4 ZenithProxy Java 端实现参考
+
+在 ZenithProxy Java 插件中，需要：
+
+1. **监听 Minecraft 事件**：
+   - `ChatReceivedEvent` → 推送 `chat` 事件
+   - `PlayerJoinEvent` → 推送 `player_join` 事件
+   - `PlayerLeaveEvent` → 推送 `player_leave` 事件
+   - 其他自定义事件
+
+2. **通过 WS 发送**：
+   ```java
+   // 伪代码
+   JSONObject event = new JSONObject();
+   event.put("type", "event");
+   event.put("event_type", "chat");
+   event.put("data", new JSONObject()
+       .put("sender", playerName)
+       .put("message", chatMessage));
+   event.put("timestamp", System.currentTimeMillis() / 1000);
+   wsClient.send(event.toString());
+   ```
+
+3. **确保 WebSocket 连接存活**：事件推送依赖 WS 连接，如果连接断开事件会丢失
