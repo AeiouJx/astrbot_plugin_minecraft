@@ -525,11 +525,10 @@ class MinecraftBridgePlugin(Star):
 
         # 发送到 QQ 群
         try:
-            platform_id = f"aiocqhttp:group:{event_group}"
-            logger.info(f"[{server_id}] 尝试推送到 {platform_id}: {msg[:80]}")
+            logger.info(f"[{server_id}] 尝试推送到 aiocqhttp:group:{event_group}: {msg[:80]}")
             await self.context.send_message(
-                platform_id=platform_id,
-                message=msg,
+                f"aiocqhttp:group:{event_group}",
+                msg,
             )
             logger.info(f"[{server_id}] 已推送到群 {event_group}: {msg[:50]}...")
         except Exception as e:
