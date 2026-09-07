@@ -81,7 +81,7 @@ function esc(s) {
 function addMessage(msg) {
   if (!msg.time) msg.time = ts();
   messages.push(msg);
-  if (messages.length > 512) messages.shift();
+  if (messages.length > 200) messages.shift();
   renderChat();
 }
 

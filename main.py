@@ -466,13 +466,6 @@ class MinecraftBridgePlugin(Star):
                 event_type = item.get("event_type")
                 server_id = item.get("server_id", "default")
                 payload = item.get("data", {})
-
-                # 心跳去重：多实例时只处理最活跃实例的事件
-                registry = self.bridge.registry
-                if not registry.is_active_instance(server_id):
-                    logger.debug(f"[{server_id}] 非活跃实例, 跳过事件 {event_type}")
-                    continue
-
                 logger.info(f"[{server_id}] _consume_events: type={event_type}")
 
                 # 推送到 Dashboard
@@ -525,6 +518,18 @@ class MinecraftBridgePlugin(Star):
         if not event_group:
             logger.debug(f"[{server_id}] minecraft_event_group 为空, 跳过")
             return
+
+        # 时间窗口去重：同类型事件 30 秒内不重复推送
+        import time
+        if not hasattr(self, '_qq_push_last'):
+            self._qq_push_last = {}
+        dedup_key = f"{server_id}:{event_type}"
+        now_ts = time.time()
+        last_ts = self._qq_push_last.get(dedup_key, 0)
+        if now_ts - last_ts < 30:
+            logger.debug(f"[{server_id}] {event_type} 30秒内已推送, 跳过")
+            return
+        self._qq_push_last[dedup_key] = now_ts
 
         # 格式化消息
         from datetime import datetime
