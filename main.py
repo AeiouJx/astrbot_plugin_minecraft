@@ -336,8 +336,12 @@ class MinecraftBridgePlugin(Star):
 
     def push_page_message(self, server_id: str, sender: str, content: str, msg_type: str = "chat"):
         """将消息推送到 Dashboard SSE 订阅者。"""
+        # 获取实际 MC 账号名
+        conn_info = self.bridge.registry.get_connection_info(server_id)
+        account = (conn_info or {}).get("account", "") or server_id
         msg = {
             "server_id": server_id,
+            "account": account,
             "sender": sender,
             "content": content,
             "time": time.strftime("%H:%M:%S"),
