@@ -189,6 +189,7 @@ def _register_adapter():
                 try:
                     item = await self.bridge.event_queue.get()
                     event_type = item.get("event_type")
+                    logger.info(f"[{item.get('server_id', '?')}] adapter收到事件: type={event_type}, data_keys={list(item.get('data', {}).keys()) if isinstance(item.get('data'), dict) else '?'}")
                     if event_type in (EVENT_CHAT, EVENT_WHISPER):
                         abm = await self.convert_message(item)
                         if abm is not None and not self._is_duplicate(item):
