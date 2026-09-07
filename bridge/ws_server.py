@@ -128,7 +128,7 @@ class WSServer:
                             await self.registry.register(conn)
                             conn.touch()
                             await conn.send_hello_ack()
-                            logger.info(f"[{server_id}] hello 握手完成 (mod={conn.mod_version}, caps={conn.capabilities})")
+                            logger.info(f"[{server_id}] hello 握手完成 (account={conn.account}, hwid={conn.hwid}, mod={conn.mod_version})")
                         elif msg_type == protocol.MSG_HEARTBEAT:
                             # 兼容旧协议：heartbeat 作为首条消息
                             server_id = data.get("server_id") or "default"
