@@ -193,13 +193,39 @@ def _register_adapter():
                             # LLM 自动回复
                             if event_type == EVENT_CHAT and self._should_llm_reply():
                                 await self._try_llm_reply(item)
+                        # 推送到 Dashboard（包括重复的，因为用户可能想看）
+                        payload = item.get("data", {})
+                        cb = getattr(self.bridge, "page_push_callback", None)
+                        if cb and event_type == EVENT_CHAT:
+                            cb(item.get("server_id", ""), payload.get("sender", ""), payload.get("message", ""))
+                        elif cb and event_type == EVENT_WHISPER:
+                            sender = payload.get("sender", "")
+                            message = payload.get("message", "")
+                            cb(item.get("server_id", ""), sender, f"[私聊] {message}")
                     else:
                         # 非聊天事件也需要去重
                         if self._is_duplicate(item):
                             continue
                     # 所有事件都尝试推送到群（包括聊天）
                     await self._push_event_to_group(item)
+                    # 非聊天事件也推送到 Dashboard
                     if event_type not in (EVENT_CHAT, EVENT_WHISPER):
+                        cb = getattr(self.bridge, "page_push_callback", None)
+                        if cb:
+                            payload = item.get("data", {})
+                            player = payload.get("player", "")
+                            if event_type == "player_join":
+                                cb(item.get("server_id", ""), "System", f"{player} 加入了游戏")
+                            elif event_type == "player_leave":
+                                cb(item.get("server_id", ""), "System", f"{player} 离开了游戏")
+                            elif event_type == "death":
+                                death_msg = payload.get("death_message", payload.get("message", ""))
+                                cb(item.get("server_id", ""), "System", death_msg)
+                            elif event_type == "achievement":
+                                ach = payload.get("achievement", "")
+                                cb(item.get("server_id", ""), "System", f"{player} 达成成就: {ach}")
+                            elif event_type == "system":
+                                cb(item.get("server_id", ""), "System", payload.get("message", ""))
                         logger.debug(f"收到事件: {event_type}")
                 except asyncio.CancelledError:
                     break

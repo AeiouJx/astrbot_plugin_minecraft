@@ -30,6 +30,7 @@ class BridgeManager:
         self.ws_server = WSServer(self.registry, self.config)
         self.rpc_timeout = float(self.config.get("rpc_timeout", 10))
         self.started = False
+        self.page_push_callback = None  # Dashboard 消息推送回调
 
     @classmethod
     def get_instance(cls) -> "BridgeManager":

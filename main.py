@@ -8,6 +8,10 @@
 @filter.llm_tool 必须在 Star 子类方法上使用（import 时自注册），
 工具业务逻辑见 tools/mc_tools.py。
 """
+import asyncio
+import collections
+import json
+import time
 
 from __future__ import annotations
 
@@ -63,6 +67,10 @@ class MinecraftBridgePlugin(Star):
         # 是否开启 WS 服务（启动时再 start）
         self._bridge_on = bool(self.config.get("bridge_on", False))
 
+        # Dashboard 消息缓冲 + SSE 订阅者
+        self._page_messages: collections.deque = collections.deque(maxlen=200)
+        self._page_sse_subscribers: list = []
+
         # 注册 Web API 端点
         self._register_web_apis()
 
@@ -104,6 +112,18 @@ class MinecraftBridgePlugin(Star):
                 self._api_save_config,
                 ["POST"],
                 "保存配置",
+            )
+            self.context.register_web_api(
+                "/astrbot_plugin_minecraft_bridge/send",
+                self._api_send,
+                ["POST"],
+                "发送消息到 Minecraft",
+            )
+            self.context.register_web_api(
+                "/astrbot_plugin_minecraft_bridge/events",
+                self._api_events,
+                ["GET"],
+                "SSE 实时消息流",
             )
         except Exception as e:
             logger.debug(f"Web API 注册失败（可能不支持）: {e}")
@@ -229,8 +249,67 @@ class MinecraftBridgePlugin(Star):
             from astrbot.api.web import error_response
             return error_response(str(e))
 
+    async def _api_send(self):
+        """POST /astrbot_plugin_minecraft_bridge/send - 发送消息到 Minecraft。"""
+        from astrbot.api.web import json_response, request
+        try:
+            payload = await request.json(default={})
+            server_id = payload.get("server_id", "")
+            message = payload.get("message", "")
+            if not server_id or not message:
+                from astrbot.api.web import error_response
+                return error_response("server_id and message required")
+            await self.bridge.send_chat(server_id, message)
+            # 本地也推一条
+            self.push_page_message(server_id, "Bot", message)
+            return json_response({"status": "ok"})
+        except Exception as e:
+            from astrbot.api.web import error_response
+            return error_response(str(e))
+
+    async def _api_events(self):
+        """GET /astrbot_plugin_minecraft_bridge/events - SSE 实时消息流。"""
+        from astrbot.api.web import stream_response
+        queue: asyncio.Queue = asyncio.Queue()
+        self._page_sse_subscribers.append(queue)
+
+        async def event_stream():
+            try:
+                # 先发送历史消息
+                for msg in self._page_messages:
+                    yield f"data: {json.dumps(msg, ensure_ascii=False)}\n\n"
+                # 持续推送新消息
+                while True:
+                    try:
+                        msg = await asyncio.wait_for(queue.get(), timeout=30)
+                        yield f"data: {json.dumps(msg, ensure_ascii=False)}\n\n"
+                    except asyncio.TimeoutError:
+                        yield ": keepalive\n\n"
+            finally:
+                if queue in self._page_sse_subscribers:
+                    self._page_sse_subscribers.remove(queue)
+
+        return stream_response(event_stream())
+
+    def push_page_message(self, server_id: str, sender: str, content: str):
+        """将消息推送到 Dashboard SSE 订阅者。"""
+        msg = {
+            "server_id": server_id,
+            "sender": sender,
+            "content": content,
+            "time": time.strftime("%H:%M:%S"),
+        }
+        self._page_messages.append(msg)
+        for q in list(self._page_sse_subscribers):
+            try:
+                q.put_nowait(msg)
+            except asyncio.QueueFull:
+                pass
+
     async def initialize(self):
         """异步初始化：按配置启动 WS 服务。"""
+        # 设置 Dashboard 消息推送回调
+        self.bridge.page_push_callback = self.push_page_message
         if self._bridge_on:
             self.bridge.start()
             logger.info("Minecraft Bridge 插件已加载 (自动启动 WS 服务)")

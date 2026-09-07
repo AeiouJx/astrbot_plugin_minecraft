@@ -2,6 +2,7 @@ const bridge = window.AstrBotPluginPage;
 const instances = [];
 let selectedInstance = null;
 const messages = [];
+let eventSource = null;
 
 async function loadStatus() {
   try {
@@ -71,6 +72,24 @@ function addMessage(msg) {
   renderMessages();
 }
 
+function startSSE() {
+  if (eventSource) eventSource.close();
+  eventSource = new EventSource('/api/plugin/page/content/astrbot_plugin_minecraft_bridge/events?asset_token=' + new URLSearchParams(window.location.search).get('asset_token'));
+  eventSource.onmessage = function(e) {
+    try {
+      const msg = JSON.parse(e.data);
+      addMessage(msg);
+    } catch (err) {
+      console.warn('[mcbridge] SSE parse error:', err);
+    }
+  };
+  eventSource.onerror = function() {
+    console.warn('[mcbridge] SSE error, retrying...');
+    eventSource.close();
+    setTimeout(startSSE, 3000);
+  };
+}
+
 document.getElementById('btn-start').addEventListener('click', async function() {
   await bridge.apiPost('start');
   setTimeout(loadStatus, 1000);
@@ -90,12 +109,16 @@ document.getElementById('btn-clear').addEventListener('click', function() {
   renderMessages();
 });
 
-document.getElementById('btn-send').addEventListener('click', function() {
+document.getElementById('btn-send').addEventListener('click', async function() {
   const input = document.getElementById('chat-input');
   const msg = input.value.trim();
   if (!msg || !selectedInstance) return;
   input.value = '';
-  addMessage({ server_id: selectedInstance, sender: 'Bot', content: msg, time: new Date().toLocaleTimeString() });
+  try {
+    await bridge.apiPost('send', { server_id: selectedInstance, message: msg });
+  } catch (e) {
+    console.error('[mcbridge] send error:', e);
+  }
 });
 
 document.getElementById('chat-input').addEventListener('keypress', function(e) {
@@ -112,6 +135,7 @@ document.getElementById('btn-save-config').addEventListener('click', function() 
     console.log('[mcbridge] bridge ready, context:', ctx);
     await loadStatus();
     setInterval(loadStatus, 5000);
+    startSSE();
   } catch (e) {
     console.error('[mcbridge] init error:', e);
     document.getElementById('ws-status').textContent = 'Error';
