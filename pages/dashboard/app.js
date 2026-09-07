@@ -72,8 +72,6 @@ function addMessage(msg) {
   renderMessages();
 }
 
-let sseSubscriptionId = null;
-
 function startSSE() {
   if (sseSubscriptionId) {
     bridge.unsubscribeSSE(sseSubscriptionId);
