@@ -254,8 +254,9 @@ class MinecraftBridgePlugin(Star):
             self.bridge.rpc_timeout = float(self.config.get("rpc_timeout", 10))
             self.bridge.ws_server.apply_config(self.config)
 
-            # 如果 WS 服务正在运行，重启以应用新配置
-            if self._bridge_on and self.bridge.started:
+            # 只有 WS 相关配置变更时才重启
+            ws_keys = {"ws_host", "ws_port", "ws_path", "shared_token"}
+            if ws_keys & set(payload.keys()) and self._bridge_on and self.bridge.started:
                 await self.bridge.stop()
                 self.bridge.start()
 

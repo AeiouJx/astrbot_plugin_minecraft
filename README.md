@@ -90,3 +90,24 @@ The communication protocol follows [plane.md](plane.md) Chapter 3: `heartbeat/he
 ## License
 
 MIT
+
+## Changelog
+
+### 2026-09-07
+
+- **Dashboard 配置面板修复**: `_api_get_config` 现在返回 QQ 推送相关配置项（`minecraft_event_group`, `chat_push_enabled`, `server_event_push_enabled` 等）；Dashboard 加载时自动填充表单；保存按钮真正调用 API 保存配置
+- **保存配置不再断开连接**: 只有 WS 相关配置（host/port/path/token）变更时才重启 bridge，QQ 推送等配置变更不会触发重启
+- **平台自动注册**: 插件启动时自动将 `minecraft_bridge` 注册为 AstrBot 活跃平台（`_ensure_platform()`）
+- **后台事件消费**: 在 `initialize()` 中启动 `_consume_events()` 任务，直接从 `event_queue` 读取事件推送到 Dashboard 和 QQ，不依赖 adapter `run()` 被调用
+- **调试日志**: registry `_dispatch_event` 和 adapter 添加详细日志，便于排查事件流转问题
+
+### 2026-09-06
+
+- **LLM 自动回复**: 游戏内玩家聊天触发 AI 自动回复，支持权重触发、速率限制、提示模板
+- **QQ 群推送**: 玩家聊天和游戏事件（加入/离开/死亡/成就）推送到指定 QQ 群，支持实例前缀 `[server_id]`
+- **Dashboard SSE 实时推送**: 使用 `bridge.subscribeSSE()` 接收实时事件，`bridge.apiPost('send')` 发送消息
+- **Web Dashboard 重建**: 按 AstrBot Plugin Pages 规范文档重建，修复 bridge SDK 变量名、SSE 认证、模块作用域等问题
+- **事件去重**: `maxlen=2048` 去重环，防止重复事件
+- **黑白名单**: 群号白名单、用户黑名单
+- **消息长度限制**: `inbound_max_message_length` / `outbound_max_message_length`
+- **WS 重启修复**: 修复重复启动时旧线程未清理导致重复响应的问题
