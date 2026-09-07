@@ -128,6 +128,12 @@ class MinecraftBridgePlugin(Star):
                 ["GET"],
                 "SSE 实时消息流",
             )
+            self.context.register_web_api(
+                "/astrbot_plugin_minecraft_bridge/players",
+                self._api_players,
+                ["GET"],
+                "获取在线玩家列表",
+            )
         except Exception as e:
             logger.debug(f"Web API 注册失败（可能不支持）: {e}")
 
@@ -173,6 +179,25 @@ class MinecraftBridgePlugin(Star):
         except Exception as e:
             from astrbot.api.web import error_response
             return error_response(str(e))
+
+    async def _api_players(self):
+        """GET /astrbot_plugin_minecraft_bridge/players - 获取所有实例的在线玩家。"""
+        from astrbot.api.web import json_response
+        from .bridge.protocol import RESOURCE_ONLINE_PLAYERS
+        result = {}
+        for info in self.bridge.registry.get_all_connection_info():
+            if info is None:
+                continue
+            sid = info.get("server_id", "")
+            try:
+                data = await self.bridge.registry.send_query(sid, RESOURCE_ONLINE_PLAYERS, timeout=5)
+                result[sid] = {
+                    "players": data.get("players", []),
+                    "total": data.get("total", 0),
+                }
+            except Exception:
+                result[sid] = {"players": [], "total": 0}
+        return json_response({"status": "ok", "data": result})
 
     async def _api_start(self):
         """POST /astrbot_plugin_minecraft_bridge/start - 启动 WS 服务。"""
@@ -309,13 +334,14 @@ class MinecraftBridgePlugin(Star):
 
         return stream_response(event_stream())
 
-    def push_page_message(self, server_id: str, sender: str, content: str):
+    def push_page_message(self, server_id: str, sender: str, content: str, msg_type: str = "chat"):
         """将消息推送到 Dashboard SSE 订阅者。"""
         msg = {
             "server_id": server_id,
             "sender": sender,
             "content": content,
             "time": time.strftime("%H:%M:%S"),
+            "type": msg_type,
         }
         self._page_messages.append(msg)
         for q in list(self._page_sse_subscribers):
@@ -446,21 +472,21 @@ class MinecraftBridgePlugin(Star):
                 cb = self.bridge.page_push_callback
                 if cb:
                     if event_type == EVENT_CHAT:
-                        cb(server_id, payload.get("sender", ""), payload.get("message", ""))
+                        cb(server_id, payload.get("sender", ""), payload.get("message", ""), "chat")
                     elif event_type == EVENT_WHISPER:
-                        cb(server_id, payload.get("sender", ""), f"[私聊→{payload.get('receiver', '')}] {payload.get('message', '')}")
+                        cb(server_id, payload.get("sender", ""), f"[私聊→{payload.get('receiver', '')}] {payload.get('message', '')}", "chat")
                     elif event_type == EVENT_PLAYER_JOIN:
-                        cb(server_id, "System", f"{payload.get('player', '')} 加入了游戏")
+                        cb(server_id, "System", f"{payload.get('player', '')} 加入了游戏", "join")
                     elif event_type == EVENT_PLAYER_LEAVE:
-                        cb(server_id, "System", f"{payload.get('player', '')} 离开了游戏")
+                        cb(server_id, "System", f"{payload.get('player', '')} 离开了游戏", "leave")
                     elif event_type == EVENT_DEATH:
-                        cb(server_id, "System", payload.get("death_message", payload.get("message", "Bot 死亡了")))
+                        cb(server_id, "System", payload.get("death_message", payload.get("message", "Bot 死亡了")), "death")
                     elif event_type == EVENT_ACHIEVEMENT:
-                        cb(server_id, "System", f"{payload.get('player', '')} 达成成就: {payload.get('achievement', '')}")
+                        cb(server_id, "System", f"{payload.get('player', '')} 达成成就: {payload.get('achievement', '')}", "achievement")
                     elif event_type == EVENT_SYSTEM:
-                        cb(server_id, "System", payload.get("message", ""))
+                        cb(server_id, "System", payload.get("message", ""), "system")
                     elif event_type == EVENT_BOT_STATUS:
-                        cb(server_id, "System", f"[{payload.get('bot_name', '')}] 状态: {payload.get('status', '')}")
+                        cb(server_id, "System", f"[{payload.get('bot_name', '')}] 状态: {payload.get('status', '')}", "system")
 
                 # 推送到 QQ 群
                 await self._push_event_to_group(item)
