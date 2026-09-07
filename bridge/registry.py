@@ -81,6 +81,7 @@ class Registry:
             "capabilities": conn.capabilities,
             "connected_at": conn.connected_at,
             "last_seen": conn.last_seen,
+            "account": getattr(conn, "account", ""),
         }
 
     def get_all_connection_info(self) -> list[dict]:

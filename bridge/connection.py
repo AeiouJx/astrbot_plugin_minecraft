@@ -44,6 +44,7 @@ class BridgeConnection:
         self.mod_version: str = ""
         self.capabilities: list[str] = []
         self.connected_at: float = protocol.now()
+        self.account: str = ""  # 实际登录的 MC 账号名
 
     @property
     def alive(self) -> bool:
@@ -59,6 +60,7 @@ class BridgeConnection:
         self.server_name = data.get("server_name", "")
         self.mod_version = data.get("mod_version", "")
         self.capabilities = data.get("capabilities", [])
+        self.account = data.get("account", "")  # ZenithProxy 发送的实际 MC 账号名
 
     async def send_text(self, raw: str) -> bool:
         """发送文本帧，失败返回 False。"""
