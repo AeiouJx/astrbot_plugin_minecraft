@@ -3,6 +3,7 @@ let selectedInstance = null;
 const messages = [];
 let sseSubscriptionId = null;
 let instances = [];
+let userScrolledUp = false;
 
 function ts() {
   const d = new Date();
@@ -57,6 +58,8 @@ function renderChat() {
     area.innerHTML = '<div class="empty-state">暂无消息</div>';
     return;
   }
+  // 检测是否在底部附近（50px 容差）
+  const atBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 50;
   area.innerHTML = filtered.map(function(msg) {
     const time = msg.timestamp ? formatTs(msg.timestamp) : msg.time;
     const type = msg.type || 'chat';
@@ -67,7 +70,10 @@ function renderChat() {
       return '<div class="msg-card ' + type + '"><div class="msg-header"><span class="server-tag">' + esc(label) + '</span><span class="msg-time">' + time + '</span></div><div class="msg-content">' + esc(msg.content) + '</div></div>';
     }
   }).join('');
-  area.scrollTop = area.scrollHeight;
+  // 只有用户在底部时才自动滚到底部
+  if (atBottom || !userScrolledUp) {
+    area.scrollTop = area.scrollHeight;
+  }
 }
 
 function formatTs(ts) {
@@ -168,6 +174,12 @@ document.getElementById('chat-input').addEventListener('keypress', function(e) {
 (async function() {
   try {
     await bridge.ready();
+    // 监听滚动位置，判断用户是否手动滚到上方
+    var chatArea = document.getElementById('chat-area');
+    chatArea.addEventListener('scroll', function() {
+      var distFromBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight;
+      userScrolledUp = distFromBottom > 50;
+    });
     await loadStatus();
     loadPlayers();
     setInterval(loadStatus, 5000);
