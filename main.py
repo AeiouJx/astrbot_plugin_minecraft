@@ -31,6 +31,10 @@ class MinecraftPlugin(Star):
         # QQ 推送平台 ID（需与 cmd_config.json 中 aiocqhttp 适配器的 id 一致）
         self._qq_platform_id = "小猫咪NapCat"
 
+        # 内容审核器
+        from .moderation import ContentModerator
+        self._moderator = ContentModerator(self.config, context)
+
     # ==================== QQ 推送 ====================
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=1000)
@@ -70,14 +74,22 @@ class MinecraftPlugin(Star):
         if not push:
             return
 
-        # 违禁词过滤
-        blocked = self.config.get("qq_blocked_words", [])
-        if blocked and any(w in msg for w in blocked):
+        # L1 + L2: 违禁词过滤（同步，快速）
+        safe, reason = self._moderator.check(msg)
+        if not safe:
+            logger.debug(f"[MC→QQ] 拦截: {reason} | {msg}")
             return
 
         # Chat 消息：sender 单独显示
         if event.message_obj.sender.user_id != "system":
             msg = f"{event.message_obj.sender.nickname}: {msg}"
+
+        # L3: AI 审核（仅聊天消息，异步）
+        if etype == protocol.EVENT_CHAT:
+            safe, reason = await self._moderator.ai_check(msg)
+            if not safe:
+                logger.debug(f"[MC→QQ] AI 拦截: {reason} | {msg}")
+                return
 
         text = f"[{time.strftime('%H:%M:%S')}] [{event.server_id}]\n{msg}"
         session = f"{self._qq_platform_id}:GroupMessage:{qq_group}"
