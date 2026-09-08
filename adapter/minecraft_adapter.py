@@ -32,24 +32,24 @@ from ..bridge import protocol
 from .minecraft_event import MinecraftEvent
 
 _config_metadata = {
-    "ws_host": {
-        "description": "WebSocket 监听地址",
-        "hint": "建议绑定内网地址，如 0.0.0.0 或局域网 IP",
+    "host": {
+        "description": "反向 WebSocket 主机",
+        "hint": "AstrBot 将作为 WebSocket 服务器端。",
         "type": "string",
     },
-    "ws_port": {
-        "description": "WebSocket 监听端口",
-        "hint": "需要与 ZenithProxy 插件 bridge.wsPort 一致",
+    "port": {
+        "description": "反向 WebSocket 端口",
+        "hint": "需要与 ZenithProxy 插件 bridge.wsPort 一致；端口被占用时可以换成其他未使用端口",
         "type": "int",
     },
-    "ws_path": {
+    "path": {
         "description": "WebSocket 路径",
         "hint": "默认 /ws，两端需一致",
         "type": "string",
     },
-    "shared_token": {
+    "token": {
         "description": "连接认证 Token",
-        "hint": "两端必须完全一致",
+        "hint": "两端必须完全一致；未设置则不启用 Token 验证",
         "type": "string",
     },
 }
@@ -97,10 +97,10 @@ class MinecraftPlatformAdapter(Platform):
 
     async def run(self) -> None:
         """启动 WebSocket 服务端，接收 ZenithProxy 连接。"""
-        config = self.bridge.config
-        host = config.get("ws_host", "0.0.0.0")
-        port = int(config.get("ws_port", 8765))
-        path = config.get("ws_path", "/ws")
+        # 优先使用平台配置，fallback 到插件配置
+        host = self.config.get("host") or self.bridge.config.get("ws_host", "0.0.0.0")
+        port = int(self.config.get("port") or self.bridge.config.get("ws_port", 8765))
+        path = self.config.get("path") or self.bridge.config.get("ws_path", "/ws")
 
         app = web.Application()
         app.router.add_get(path, self._handle_websocket)
@@ -125,7 +125,7 @@ class MinecraftPlatformAdapter(Platform):
 
         # 鉴权
         auth = request.headers.get("Authorization", "")
-        token = self.bridge.config.get("shared_token", "change-me")
+        token = self.config.get("token") or self.bridge.config.get("shared_token", "change-me")
         if not auth.startswith("Bearer ") or auth[7:].strip() != token:
             logger.warning(f"WS 鉴权失败: {request.remote}")
             await ws.close()
