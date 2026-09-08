@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 from astrbot.api.event import filter, AstrMessageEvent, MessageChain
 from astrbot.api.star import Context, Star
@@ -74,7 +75,7 @@ class MinecraftPlugin(Star):
         if blocked and any(w in msg for w in blocked):
             return
 
-        text = f"[MC] {msg}"
+        text = f"[{time.strftime('%H:%M:%S')}] [{event.server_id}] {msg}"
         session = f"{self._qq_platform_id}:GroupMessage:{qq_group}"
         chain = MessageChain()
         chain.chain.append(Plain(text=text))
