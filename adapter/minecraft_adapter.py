@@ -192,7 +192,10 @@ class MinecraftPlatformAdapter(Platform):
 
                         # 处理事件
                         if msg_type == protocol.MSG_EVENT:
-                            await self._handle_event(conn.server_id, data)
+                            try:
+                                await self._handle_event(conn.server_id, data)
+                            except Exception as e:
+                                logger.error(f"[{conn.server_id}] 事件处理异常: {e}")
                         elif msg_type == protocol.MSG_HEARTBEAT:
                             await conn.send_heartbeat_ack()
                         elif msg_type == protocol.MSG_TASK_RESULT:
