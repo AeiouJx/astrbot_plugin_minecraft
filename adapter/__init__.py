@@ -1,3 +1,3 @@
-"""adapter 包 - Minecraft Bridge 平台适配器。"""
+"""adapter 包 - Minecraft WebSocket 平台适配器。"""
 
-from .minecraft_adapter import MinecraftPlatformAdapter  # noqa: F401
+from .minecraft_platform_adapter import MinecraftPlatformAdapter  # noqa: F401

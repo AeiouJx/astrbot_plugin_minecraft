@@ -1,9 +1,9 @@
-name: astrbot_plugin_minecraft_bridge # 插件唯一识别名，以 astrbot_plugin_ 前缀开头
-display_name: Minecraft Bridge # 用于展示的名字
-short_desc: ZenithProxy Minecraft 与 AstrBot 双向消息桥 + AI 控制
+name: astrbot_plugin_minecraft
+display_name: Minecraft
+short_desc: Minecraft WebSocket 双向消息桥 + AI 控制
 desc: |
-  通过 WebSocket 将 ZenithProxy (Minecraft) 与 AstrBot 深度集成。
-  支持游戏事件上报、QQ 群聊下发动指令、AI 工具调用控制游戏 Bot。
+  通过 WebSocket 将 ZenithProxy (Minecraft) 与 AstrBot 集成。
+  支持游戏事件上报、QQ 群聊下发指令、AI 工具调用控制游戏 Bot。
 
   功能特性：
   - WebSocket 全双工通信 (Bearer Token 鉴权)
@@ -11,8 +11,8 @@ desc: |
   - QQ 消息下发到游戏 Bot 发言
   - 8 个 AI 工具：查询状态/玩家/背包/实体、移动、攻击、发言
   - 多实例支持 (server_id 路由)
-version: v0.1.0 # 插件版本号
-author: PearlLoader # 作者
-repo: https://github.com/PearlLoader/astrbot_plugin_minecraft_bridge # 插件的仓库地址
+version: v0.1.0
+author: AeiouJx
+repo: https://github.com/AeiouJx/astrbot_plugin_minecraft
 support_platforms:
   - minecraft
