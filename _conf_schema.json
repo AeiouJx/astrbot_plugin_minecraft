@@ -1,197 +1,197 @@
 {
-    "bridge_on": {
-        "description": "自动创建并启用 Minecraft Bridge 平台",
+    "auto_enable_platform": {
+        "description": "自动创建并启用 Minecraft 平台",
         "type": "bool",
-        "default": false,
-        "hint": "推荐保持开启。启用插件时若没有 minecraft_bridge 平台实例，将用本页配置自动创建并监听；已有实例会保留原配置。需要在消息平台页手动停用时，请先关闭此项"
+        "hint": "推荐保持开启。启用插件时若没有 minecraft_bridge 平台实例，将用本页配置自动创建并监听；已有实例会保留原配置。需要在消息平台页手动停用时，请先关闭此项。",
+        "default": true
     },
-    "ws_host": {
+    "host": {
         "description": "WebSocket 监听地址",
         "type": "string",
-        "default": "0.0.0.0",
-        "hint": "单机部署通常保持 0.0.0.0；跨机器连接时改为可被 MC 服务器访问的地址"
+        "hint": "AstrBot 将作为 WebSocket 服务器端。单机部署保持 0.0.0.0；跨机器连接时改为可被 MC 服务器访问的地址。",
+        "default": "0.0.0.0"
     },
-    "ws_port": {
+    "port": {
         "description": "WebSocket 监听端口",
         "type": "int",
+        "hint": "需要与 ZenithProxy 插件 bridge.wsPort 一致；端口被占用时可以换成其他未使用端口。",
         "default": 8765,
-        "hint": "需要与 ZenithProxy 插件 bridge.wsPort 一致；端口被占用时可以换成其他未使用端口",
         "slider": {"min": 1024, "max": 65535, "step": 1}
     },
-    "ws_path": {
+    "path": {
         "description": "WebSocket 路径",
         "type": "string",
-        "default": "/ws",
-        "hint": "默认 /ws，两端需一致"
+        "hint": "默认 /ws，两端需一致。",
+        "default": "/ws"
     },
-    "shared_token": {
+    "token": {
         "description": "连接认证 Token",
         "type": "string",
         "secret": true,
-        "default": "change-me",
-        "hint": "两端必须完全一致；建议把 change-me 改成较长的随机字符串"
+        "hint": "ZenithProxy 连接 AstrBot 时使用，两端必须完全一致；建议把 change-me 改成较长的随机字符串。",
+        "default": "change-me"
     },
     "default_server_id": {
         "description": "默认服务器实例 ID",
         "type": "string",
-        "default": "default",
-        "hint": "AI 工具未指定 server 时使用的默认实例"
+        "hint": "AI 工具未指定 server 时使用的默认实例。",
+        "default": "default"
     },
     "heartbeat_timeout": {
         "description": "心跳超时秒数",
         "type": "int",
+        "hint": "超过该时间未收到心跳则判定客户端离线。",
         "default": 15,
-        "hint": "超过该时间未收到心跳则判定客户端离线",
         "slider": {"min": 5, "max": 60, "step": 1}
     },
     "rpc_timeout": {
         "description": "RPC 超时秒数",
         "type": "int",
+        "hint": "task/query 等待结果的最大秒数。",
         "default": 10,
-        "hint": "task/query 等待结果的最大秒数",
         "slider": {"min": 3, "max": 60, "step": 1}
     },
-    "group_id_prefix": {
+    "group_id": {
         "description": "虚拟群 ID 前缀",
         "type": "string",
-        "default": "minecraft",
-        "hint": "生成格式: {prefix}:{server_id}，一般不需要修改"
-    },
-    "notify_group": {
-        "description": "审核通知群",
-        "type": "string",
-        "default": "",
-        "hint": "留空不启用；填写群号后，重要事件通知（如 Bot 异常、连接断开等）将推送到该群"
-    },
-    "allowed_groups": {
-        "description": "允许使用的群号列表",
-        "type": "list",
-        "default": [],
-        "hint": "留空表示所有群都可用；填写后仅这些群可使用 Minecraft Bridge 命令"
-    },
-    "blocked_groups": {
-        "description": "禁止使用的群号列表",
-        "type": "list",
-        "default": [],
-        "hint": "这些群无法使用 Minecraft Bridge 命令（优先级高于白名单）"
-    },
-    "blocked_users": {
-        "description": "用户黑名单",
-        "type": "list",
-        "default": [],
-        "hint": "黑名单中的用户发送的消息不会被处理"
+        "hint": "生成格式: {prefix}:{server_id}，一般不需要修改。",
+        "default": "minecraft"
     },
     "minecraft_event_group": {
         "description": "Minecraft 事件推送群号",
         "type": "string",
-        "default": "",
-        "hint": "留空不推送；填写后选中的事件类型会推送到该群"
+        "hint": "留空不推送；填写 QQ 群号后，下方勾选的事件类型会推送到该群。",
+        "default": ""
     },
     "push_chat": {
         "description": "推送聊天消息",
         "type": "bool",
-        "default": false,
-        "hint": "将玩家公开聊天推送到 QQ 群"
+        "hint": "将玩家公开聊天推送到 QQ 群。",
+        "default": false
     },
     "push_whisper": {
         "description": "推送私聊消息",
         "type": "bool",
-        "default": false,
-        "hint": "将玩家私聊消息推送到 QQ 群"
+        "hint": "将玩家私聊消息推送到 QQ 群。",
+        "default": false
     },
     "push_player_join": {
         "description": "推送玩家加入",
         "type": "bool",
-        "default": false,
-        "hint": "玩家加入游戏时推送到 QQ 群"
+        "hint": "玩家加入游戏时推送到 QQ 群。",
+        "default": false
     },
     "push_player_leave": {
         "description": "推送玩家离开",
         "type": "bool",
-        "default": false,
-        "hint": "玩家离开游戏时推送到 QQ 群"
+        "hint": "玩家离开游戏时推送到 QQ 群。",
+        "default": false
     },
     "push_death": {
         "description": "推送死亡事件",
         "type": "bool",
-        "default": false,
-        "hint": "Bot 死亡时推送到 QQ 群"
+        "hint": "Bot 死亡时推送到 QQ 群。",
+        "default": false
     },
     "push_achievement": {
         "description": "推送成就事件",
         "type": "bool",
-        "default": false,
-        "hint": "玩家达成成就时推送到 QQ 群"
+        "hint": "玩家达成成就时推送到 QQ 群。",
+        "default": false
     },
     "push_system": {
         "description": "推送系统消息",
         "type": "bool",
-        "default": false,
-        "hint": "系统消息（如摔死、烧死等）推送到 QQ 群"
+        "hint": "系统消息（如摔死、烧死等）推送到 QQ 群。",
+        "default": false
     },
     "qq_content_filter": {
         "description": "QQ 推送内容过滤",
         "type": "bool",
-        "default": true,
-        "hint": "开启后，推送到 QQ 的消息会经过内容审核，过滤可能触发腾讯封禁的敏感内容（推荐保持开启）"
+        "hint": "开启后，推送到 QQ 的消息会经过内容审核，过滤可能触发腾讯封禁的敏感内容（推荐保持开启）。",
+        "default": true
     },
     "qq_blocked_words": {
         "description": "QQ 推送自定义违禁词",
         "type": "list",
-        "default": [],
-        "hint": "包含这些词的消息不会推送到 QQ 群（每行一个词，不区分大小写）"
+        "hint": "包含这些词的消息不会推送到 QQ 群（每行一个词，不区分大小写）。",
+        "default": []
     },
-    "inbound_max_message_length": {
-        "description": "入站消息最大长度",
+    "max_message_length": {
+        "description": "最大聊天长度",
         "type": "int",
+        "hint": "单条 Minecraft 消息转发到 AstrBot 前允许的最大长度；超出部分会被截断。",
         "default": 1000,
-        "hint": "单条 Minecraft 消息转发到 AstrBot 前允许的最大长度，超出部分会被截断",
         "slider": {"min": 100, "max": 5000, "step": 100}
     },
     "outbound_max_message_length": {
-        "description": "出站消息最大长度",
+        "description": "广播回游戏的最大长度",
         "type": "int",
+        "hint": "AstrBot 回复广播到 Minecraft 前允许的最大长度；过长回复会被截断，避免刷屏。",
         "default": 2000,
-        "hint": "AstrBot 回复广播到 Minecraft 前允许的最大长度，超出部分会被截断，避免刷屏",
         "slider": {"min": 100, "max": 5000, "step": 100}
-    },
-    "llm_reply_enabled": {
-        "description": "启用 LLM 自动回复",
-        "type": "bool",
-        "default": false,
-        "hint": "开启后，游戏内玩家聊天会触发 AI 自动回复"
-    },
-    "llm_reply_weight": {
-        "description": "LLM 回复触发权重",
-        "type": "int",
-        "default": 1,
-        "hint": "触发概率 = 权重 / 10。权重越高越容易触发 LLM 回复",
-        "slider": {"min": 0, "max": 10, "step": 1}
-    },
-    "llm_prompt_template": {
-        "description": "LLM 回复提示模板",
-        "type": "text",
-        "default": "你是 Minecraft 游戏中的 AI 助手，正在与玩家聊天。请用简洁友好的语气回复，可以使用 Minecraft 相关术语。当前玩家: {player_name}，消息: {message}",
-        "hint": "支持变量: {player_name} = 发言玩家名, {message} = 消息内容"
     },
     "chat_rate_limit": {
         "description": "发言频率限制",
         "type": "int",
+        "hint": "每个时间窗口内最多发送的消息数量（0=不限制）。",
         "default": 5,
-        "hint": "每个时间窗口内最多发送的消息数量（0=不限制）",
         "slider": {"min": 0, "max": 30, "step": 1}
     },
     "chat_rate_window": {
         "description": "发言频率窗口（秒）",
         "type": "int",
+        "hint": "频率限制的时间窗口大小（秒）。",
         "default": 60,
-        "hint": "频率限制的时间窗口大小（秒）",
         "slider": {"min": 10, "max": 300, "step": 10}
+    },
+    "llm_reply_enabled": {
+        "description": "启用 LLM 自动回复",
+        "type": "bool",
+        "hint": "开启后，游戏内玩家聊天会触发 AI 自动回复。",
+        "default": false
+    },
+    "llm_reply_weight": {
+        "description": "LLM 回复触发权重",
+        "type": "int",
+        "hint": "触发概率 = 权重 / 10。权重越高越容易触发 LLM 回复。",
+        "default": 1,
+        "slider": {"min": 0, "max": 10, "step": 1}
+    },
+    "llm_prompt_template": {
+        "description": "LLM 回复提示模板",
+        "type": "text",
+        "hint": "支持变量: {player_name} = 发言玩家名, {message} = 消息内容。",
+        "default": "你是 Minecraft 游戏中的 AI 助手，正在与玩家聊天。请用简洁友好的语气回复，可以使用 Minecraft 相关术语。当前玩家: {player_name}，消息: {message}"
     },
     "ai_companion_enabled": {
         "description": "启用 AI 陪伴模式",
         "type": "bool",
-        "default": false,
-        "hint": "AI 可围绕高层目标持续行动和搭话（Mod 端也必须同时启用）"
+        "hint": "AI 可围绕高层目标持续行动和搭话（Mod 端也必须同时启用）。",
+        "default": false
+    },
+    "allowed_groups": {
+        "description": "允许使用的群号列表",
+        "type": "list",
+        "hint": "留空表示所有群都可用；填写后仅这些群可使用 Minecraft Bridge 命令。",
+        "default": []
+    },
+    "blocked_groups": {
+        "description": "禁止使用的群号列表",
+        "type": "list",
+        "hint": "这些群无法使用 Minecraft Bridge 命令（优先级高于白名单）。",
+        "default": []
+    },
+    "blocked_users": {
+        "description": "用户黑名单",
+        "type": "list",
+        "hint": "黑名单中的用户发送的消息不会被处理。",
+        "default": []
+    },
+    "notify_group": {
+        "description": "审核通知群",
+        "type": "string",
+        "hint": "留空不启用；填写群号后，重要事件通知（如 Bot 异常、连接断开等）将推送到该群。",
+        "default": ""
     }
 }

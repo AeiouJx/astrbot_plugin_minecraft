@@ -109,9 +109,9 @@ class MinecraftPlatformAdapter(Platform):
     async def run(self) -> None:
         """启动 WebSocket 服务端，接收 ZenithProxy 连接。"""
         # 优先使用平台配置，fallback 到插件配置
-        host = self.config.get("host") or self.bridge.config.get("ws_host", "0.0.0.0")
-        port = int(self.config.get("port") or self.bridge.config.get("ws_port", 8765))
-        path = self.config.get("path") or self.bridge.config.get("ws_path", "/ws")
+        host = self.config.get("host") or self.bridge.config.get("host", "0.0.0.0")
+        port = int(self.config.get("port") or self.bridge.config.get("port", 8765))
+        path = self.config.get("path") or self.bridge.config.get("path", "/ws")
 
         app = web.Application()
         app.router.add_get(path, self._handle_websocket)
@@ -136,7 +136,7 @@ class MinecraftPlatformAdapter(Platform):
 
         # 鉴权
         auth = request.headers.get("Authorization", "")
-        token = self.config.get("token") or self.bridge.config.get("shared_token", "change-me")
+        token = self.config.get("token") or self.bridge.config.get("token", "change-me")
         if not auth.startswith("Bearer ") or auth[7:].strip() != token:
             logger.warning(f"WS 鉴权失败: {request.remote}")
             await ws.close()

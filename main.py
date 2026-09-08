@@ -120,8 +120,8 @@ class MinecraftBridgePlugin(Star):
             "status": "ok",
             "bridge_on": self._bridge_on,
             "ws_running": ws_running,
-            "ws_host": self.bridge.config.get("ws_host", "0.0.0.0"),
-            "ws_port": self.bridge.config.get("ws_port", 8765),
+            "ws_host": self.bridge.config.get("host", "0.0.0.0"),
+            "ws_port": self.bridge.config.get("port", 8765),
             "online_count": self.bridge.registry.online_count,
         })
 
@@ -157,9 +157,9 @@ class MinecraftBridgePlugin(Star):
             body = await Request.body()
             new_config = json.loads(body) if body else {}
             ws_changed = (
-                new_config.get("ws_host") != self.bridge.config.get("ws_host") or
-                new_config.get("ws_port") != self.bridge.config.get("ws_port") or
-                new_config.get("shared_token") != self.bridge.config.get("shared_token")
+                new_config.get("host") != self.bridge.config.get("host") or
+                new_config.get("port") != self.bridge.config.get("port") or
+                new_config.get("token") != self.bridge.config.get("token")
             )
             self.bridge.config.update(new_config)
             self.config.update(new_config)
@@ -298,10 +298,10 @@ class MinecraftBridgePlugin(Star):
                 "type": PLATFORM_TYPE,
                 "id": PLATFORM_ID,
                 "enable": True,
-                "host": self.bridge.config.get("ws_host", "0.0.0.0"),
-                "port": self.bridge.config.get("ws_port", 8765),
-                "path": self.bridge.config.get("ws_path", "/ws"),
-                "token": self.bridge.config.get("shared_token", "change-me"),
+                "host": self.bridge.config.get("host", "0.0.0.0"),
+                "port": self.bridge.config.get("port", 8765),
+                "path": self.bridge.config.get("path", "/ws"),
+                "token": self.bridge.config.get("token", "change-me"),
             }
             platforms.append(selected)
             created = True
@@ -435,7 +435,7 @@ class MinecraftBridgePlugin(Star):
                 f"Minecraft Bridge 状态:\n"
                 f"- WS 服务: {'运行中' if self.bridge.started else '未启动'}\n"
                 f"- 在线实例: {online}\n"
-                f"- WS 地址: ws://{self.bridge.config.get('ws_host', '?')}:{self.bridge.config.get('ws_port', '?')}"
+                f"- WS 地址: ws://{self.bridge.config.get('host', '?')}:{self.bridge.config.get('port', '?')}"
             )
 
     # ==================== LLM 工具 ====================
