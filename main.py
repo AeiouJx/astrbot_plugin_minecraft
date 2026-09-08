@@ -203,7 +203,7 @@ class MinecraftBridgePlugin(Star):
                 if queue in self._page_sse_subscribers:
                     self._page_sse_subscribers.remove(queue)
 
-        return StreamingResponse(event_stream(), content_type="text/event-stream")
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
 
     async def _api_players(self):
         from astrbot.api.web import json_response
@@ -256,6 +256,87 @@ class MinecraftBridgePlugin(Star):
         if self._bridge_on:
             self.bridge.start()
             logger.info("Minecraft Bridge 插件已加载")
+        try:
+            await self._ensure_platform()
+        except Exception as exc:
+            logger.warning(f"自动注册 minecraft_bridge 平台失败: {exc}")
+
+    async def _ensure_platform(self):
+        """确保 minecraft_bridge 平台已注册并启用。"""
+        PLATFORM_TYPE = "minecraft_bridge"
+        PLATFORM_ID = "minecraft_bridge"
+
+        manager = getattr(self.context, "platform_manager", None)
+        if manager is None:
+            return
+
+        for inst in getattr(manager, "platform_insts", None) or []:
+            meta = getattr(inst, "meta", None)
+            if callable(meta) and getattr(meta(), "id", None) == PLATFORM_ID:
+                logger.info(f"minecraft_bridge 平台已在运行 (id={PLATFORM_ID})")
+                return
+
+        get_config = getattr(self.context, "get_config", None)
+        if not callable(get_config):
+            return
+        core_config = get_config()
+        platforms = core_config.get("platform")
+        if not isinstance(platforms, list):
+            return
+
+        candidates = [
+            entry for entry in platforms
+            if isinstance(entry, dict) and entry.get("type") == PLATFORM_TYPE
+        ]
+
+        selected = None
+        created = False
+        if candidates:
+            selected = candidates[0]
+        else:
+            selected = {
+                "type": PLATFORM_TYPE,
+                "id": PLATFORM_ID,
+                "enable": True,
+                "host": self.bridge.config.get("ws_host", "0.0.0.0"),
+                "port": self.bridge.config.get("ws_port", 8765),
+                "path": self.bridge.config.get("ws_path", "/ws"),
+                "token": self.bridge.config.get("shared_token", "change-me"),
+            }
+            platforms.append(selected)
+            created = True
+
+        if not selected.get("enable"):
+            selected["enable"] = True
+
+        save_config = getattr(core_config, "save_config", None)
+        if callable(save_config):
+            try:
+                saved = save_config()
+                import inspect
+                if inspect.isawaitable(saved):
+                    await saved
+            except Exception as exc:
+                if created:
+                    platforms.remove(selected)
+                raise RuntimeError(f"保存平台配置失败: {exc}") from exc
+
+        instances = getattr(manager, "platform_insts", None)
+        tasks = getattr(manager, "_platform_tasks", None)
+        manager_initialized = (isinstance(instances, list) and instances) or bool(tasks)
+
+        if manager_initialized:
+            import inspect
+            reload_fn = getattr(manager, "reload", None) or getattr(manager, "load_platform", None)
+            if callable(reload_fn):
+                result = reload_fn(selected)
+                if inspect.isawaitable(result):
+                    await result
+                logger.info(f"minecraft_bridge 平台已热加载 (id={PLATFORM_ID})")
+            else:
+                logger.warning("平台管理器不支持 reload/load_platform")
+        else:
+            logger.info(f"minecraft_bridge 平台已注册，等待 AstrBot 启动 (id={PLATFORM_ID})")
 
     async def terminate(self):
         """插件卸载/停用时清理。"""
