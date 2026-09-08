@@ -19,10 +19,13 @@ class MinecraftPlatformEvent(AstrMessageEvent):
         session_id: str,
         adapter,
         server_id: str,
+        event_type: str = "",
     ) -> None:
         super().__init__(message_str, message_obj, platform_meta, session_id)
         self.adapter = adapter
         self.server_id = server_id
+        self.bot = None
+        self.platform_event_type = event_type
 
     async def send(self, message: MessageChain) -> None:
         text = "".join(

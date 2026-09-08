@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import json
 
-from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.event import filter, AstrMessageEvent, MessageChain
 from astrbot.api.star import Context, Star
 from astrbot.api import AstrBotConfig, logger
+from astrbot.api.message_components import Plain
 
 
 class MinecraftPlugin(Star):
@@ -25,6 +26,62 @@ class MinecraftPlugin(Star):
 
         # 导入触发适配器注册
         from .adapter import MinecraftPlatformAdapter  # noqa: F401
+
+        # QQ 推送平台 ID（需与 cmd_config.json 中 aiocqhttp 适配器的 id 一致）
+        self._qq_platform_id = "小猫咪NapCat"
+
+    # ==================== QQ 推送 ====================
+
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=1000)
+    async def on_minecraft_event(self, event: AstrMessageEvent) -> None:
+        """拦截 Minecraft 事件，推送到 QQ 群。"""
+        if event.get_platform_id() != "minecraft":
+            return
+
+        qq_group = self.config.get("minecraft_event_group", "")
+        if not qq_group:
+            return
+
+        from .adapter import protocol
+
+        etype = getattr(event, "platform_event_type", "")
+        msg = event.message_str
+
+        # 根据事件类型和对应开关决定是否推送
+        push = False
+        if etype == protocol.EVENT_CHAT:
+            push = self.config.get("push_chat", False)
+        elif etype == protocol.EVENT_WHISPER:
+            push = self.config.get("push_whisper", False)
+        elif etype == protocol.EVENT_PLAYER_JOIN:
+            push = self.config.get("push_player_join", False)
+        elif etype == protocol.EVENT_PLAYER_LEAVE:
+            push = self.config.get("push_player_leave", False)
+        elif etype == protocol.EVENT_DEATH:
+            push = self.config.get("push_death", False)
+        elif etype == protocol.EVENT_ACHIEVEMENT:
+            push = self.config.get("push_achievement", False)
+        elif etype in (protocol.EVENT_SYSTEM, protocol.EVENT_BOT_STATUS):
+            push = self.config.get("push_system", False)
+        else:
+            return
+
+        if not push:
+            return
+
+        # 违禁词过滤
+        blocked = self.config.get("qq_blocked_words", [])
+        if blocked and any(w in msg for w in blocked):
+            return
+
+        text = f"[MC] {msg}"
+        session = f"{self._qq_platform_id}:group_message:{qq_group}"
+        chain = MessageChain()
+        chain.chain.append(Plain(text=text))
+        try:
+            await self.context.send_message(session, chain)
+        except Exception as e:
+            logger.warning(f"[MC→QQ] 推送失败: {e}")
 
     # ==================== 命令 ====================
 

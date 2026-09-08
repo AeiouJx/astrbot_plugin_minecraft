@@ -87,8 +87,11 @@ class MinecraftPlatformAdapter(Platform):
         )
 
     async def run(self) -> None:
+        from astrbot import logger
+        logger.info("[MC Bridge] run() called, starting WS server...")
         self._ws_server = MinecraftWSServer(self)
         await self._ws_server.start()
+        logger.info("[MC Bridge] WS server started")
 
     async def send_by_session(
         self, session: MessageSesion, message_chain: MessageChain
@@ -146,6 +149,7 @@ class MinecraftPlatformAdapter(Platform):
             session_id=abm.session_id,
             adapter=self,
             server_id=server_id,
+            event_type=event_type,
         )
         self.commit_event(event)
 
@@ -174,6 +178,7 @@ class MinecraftPlatformAdapter(Platform):
             session_id=abm.session_id,
             adapter=self,
             server_id=server_id,
+            event_type=event_type,
         )
         self.commit_event(event)
 
