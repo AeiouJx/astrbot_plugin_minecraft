@@ -20,9 +20,6 @@ class Registry:
     def __init__(self) -> None:
         self._conns: dict[str, BridgeConnection] = {}
         self._pending = protocol.PendingFuture()
-        # 提供给上层（平台适配器）的事件通道
-        self.event_queue: asyncio.Queue = asyncio.Queue()
-        self.status_queue: asyncio.Queue = asyncio.Queue()
         self._lock = asyncio.Lock()
 
     # ---- 连接管理 ----
@@ -89,22 +86,6 @@ class Registry:
         """获取所有连接元数据。"""
         return [self.get_connection_info(sid) for sid in self._conns]
 
-    def is_active_instance(self, server_id: str) -> bool:
-        """判断指定 server_id 是否为当前最活跃的实例。
-
-        当两个 ZenithProxy 实例连接同一个 MC 账号时，只有一个能进入游戏。
-        通过比较 last_seen（心跳时间）判定哪个是真正的活跃实例。
-        """
-        if len(self._conns) <= 1:
-            return True
-        conn = self._conns.get(server_id)
-        if conn is None:
-            return False
-        for sid, other in self._conns.items():
-            if sid != server_id and other.last_seen > conn.last_seen:
-                return False
-        return True
-
     @property
     def pending(self) -> protocol.PendingFuture:
         return self._pending
@@ -112,10 +93,7 @@ class Registry:
     # ---- RPC 封装 ----
 
     async def send_task(self, server_id: str, action: str, params: dict = None, timeout: float = 10.0) -> dict:
-        """下发任务并等待 task_result。
-
-        返回解析后的 data 字典。失败抛 RuntimeError。
-        """
+        """下发任务并等待 task_result。"""
         conn = self.get_or_mock(server_id)
         task_id = protocol.gen_id()
         fut = self._pending.expect(task_id, owner=server_id)
@@ -159,58 +137,12 @@ class Registry:
             raise RuntimeError(result.get("error_message") or f"查询失败: {resource}")
         return result.get("data", {})
 
-    # ---- 事件分发 ----
-
-    def handle_data_message(self, server_id: str, data: dict) -> None:
-        """处理来自连接的业务数据帧（event / task_result / query_result）。"""
-        msg_type = data.get("type")
-        logger.debug(f"[{server_id}] handle_data_message: type={msg_type}, keys={list(data.keys())}")
-        if msg_type == protocol.MSG_EVENT:
-            self._dispatch_event(server_id, data)
-        elif msg_type == protocol.MSG_TASK_RESULT:
-            self._pending.resolve(
-                data.get("task_id", ""),
-                bool(data.get("success")),
-                error_message=data.get("error_message"),
-            )
-        elif msg_type == protocol.MSG_QUERY_RESULT:
-            self._pending.resolve(
-                data.get("query_id", ""),
-                bool(data.get("success")),
-                data=data.get("data"),
-                error_message=data.get("error_message"),
-            )
-        elif msg_type in (protocol.MSG_HEARTBEAT, protocol.MSG_HEARTBEAT_ACK, 
-                          protocol.MSG_HELLO, protocol.MSG_HELLO_ACK,
-                          protocol.MSG_UPDATE_INFO, protocol.MSG_UPDATE_INFO_ACK):
-            pass  # 这些消息由 ws_server 处理，不需要在这里记录
-        else:
-            logger.debug(f"[{server_id}] 未知消息类型: {msg_type}")
-
-    def _dispatch_event(self, server_id: str, data: dict) -> None:
-        """内部事件分发：chat/whisper 进聊天队列；其余进状态队列。"""
-        event_type = data.get("event_type")
-        event_payload = data.get("data", {})
-        if not event_type:
-            logger.warning(f"[{server_id}] _dispatch_event: missing event_type in data={list(data.keys())}")
-            return
-        logger.info(f"[{server_id}] _dispatch_event: event_type={event_type}, payload_keys={list(event_payload.keys()) if isinstance(event_payload, dict) else type(event_payload)}")
-        try:
-            self.event_queue.put_nowait({
-                "server_id": server_id,
-                "event_type": event_type,
-                "data": event_payload,
-                "timestamp": data.get("timestamp"),
-            })
-        except Exception as e:  # noqa: BLE001
-            logger.error(f"[{server_id}] 事件入队失败: {e}")
-
     # ---- 心跳监控 ----
 
     async def monitor(self) -> None:
-        """后台监控任务：每 1s 扫描，last_seen 超时 -> 广播离线并移除注册表。"""
+        """后台监控任务：每 1s 扫描，last_seen 超时 -> 标记离线并移除注册表。"""
         if hasattr(self, '_monitor_running') and self._monitor_running:
-            return  # 防止重复启动
+            return
         self._monitor_running = True
         try:
             while True:
@@ -221,21 +153,8 @@ class Registry:
                 ]
                 for sid in to_remove:
                     logger.warning(f"[{sid}] 心跳超时，判定离线")
-                    await self._notify_offline(sid)
                     await self.unregister(sid, "heartbeat timeout")
         except asyncio.CancelledError:
             pass
         finally:
             self._monitor_running = False
-
-    async def _notify_offline(self, server_id: str) -> None:
-        """向状态队列广播 bot_status offline。"""
-        try:
-            self.status_queue.put_nowait({
-                "server_id": server_id,
-                "event_type": protocol.EVENT_BOT_STATUS,
-                "data": {"status": "offline"},
-                "timestamp": protocol.now(),
-            })
-        except Exception:  # noqa: BLE001
-            pass

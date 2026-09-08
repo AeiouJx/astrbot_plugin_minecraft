@@ -1,4 +1,4 @@
-"""MinecraftEvent：minecraft 虚拟平台的自定义消息事件。
+"""MinecraftEvent：Minecraft 平台事件。
 
 携带 server_id，send() 时把 AstrBot 消息链转文本，经 BridgeManager.send_chat 下发。
 """
@@ -16,7 +16,7 @@ from ..bridge import BridgeManager
 class MinecraftEvent(AstrMessageEvent):
     """Minecraft 平台事件。
 
-    一个虚拟会话即“游戏内聊天室”。send() 时 AstrBot 生成的
+    一个虚拟会话即"游戏内聊天室"。send() 时 AstrBot 生成的
     回复文本将经桥接下发到对应游戏实例。
     """
 
@@ -42,7 +42,6 @@ class MinecraftEvent(AstrMessageEvent):
         if text and self.server_id:
             try:
                 await self.bridge.send_chat(self.server_id, text)
-            except Exception as e:  # noqa: BLE001
-                from astrbot.api import logger
+            except Exception as e:
                 logger.error(f"[{self.server_id}] 游戏内发送失败: {e}")
         await super().send(message)

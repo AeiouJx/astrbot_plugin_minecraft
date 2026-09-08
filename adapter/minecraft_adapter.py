@@ -1,14 +1,17 @@
-"""MinecraftPlatformAdapter：minecraft 虚拟平台适配器。
+"""MinecraftPlatformAdapter：Minecraft Bridge 平台适配器。
 
-将 BridgeManager 事件队列中的 chat/whisper 事件转换为
-AstrBotMessage，包装成 MinecraftEvent 提交到 AstrBot 事件总线。
+直接启动 WebSocket 服务端，接收 ZenithProxy 连接，
+将 chat/whisper 事件通过 commit_event() 提交到 AstrBot 事件队列，
+由 AstrBot 框架自动路由到 QQ 等平台。
 """
 
 from __future__ import annotations
 
 import asyncio
-import uuid
+import time
+from typing import Optional
 
+from aiohttp import web, WSMsgType
 from astrbot.api import logger
 from astrbot.api.platform import (
     Platform,
@@ -16,23 +19,19 @@ from astrbot.api.platform import (
     MessageMember,
     MessageType,
     PlatformMetadata,
+    MessageSesion,
     register_platform_adapter,
 )
 from astrbot.api.event import MessageChain
 from astrbot.api.message_components import Plain
-from astrbot.core.platform.message_session import MessageSesion
 
 from ..bridge import BridgeManager
-from ..bridge.protocol import (
-    EVENT_CHAT, EVENT_WHISPER, EVENT_SYSTEM, EVENT_PLAYER_JOIN,
-    EVENT_PLAYER_LEAVE, EVENT_BOT_STATUS, EVENT_DEATH, EVENT_ACHIEVEMENT,
-)
+from ..bridge.connection import BridgeConnection
+from ..bridge.registry import Registry
+from ..bridge import protocol
 from .minecraft_event import MinecraftEvent
 
-
-_registered = False
-
-CONFIG_METADATA = {
+_config_metadata = {
     "ws_host": {
         "description": "WebSocket 监听地址",
         "hint": "建议绑定内网地址，如 0.0.0.0 或局域网 IP",
@@ -40,7 +39,7 @@ CONFIG_METADATA = {
     },
     "ws_port": {
         "description": "WebSocket 监听端口",
-        "hint": "与 ZenithProxy 插件 bridge.wsPort 一致",
+        "hint": "需要与 ZenithProxy 插件 bridge.wsPort 一致",
         "type": "int",
     },
     "ws_path": {
@@ -50,582 +49,360 @@ CONFIG_METADATA = {
     },
     "shared_token": {
         "description": "连接认证 Token",
-        "hint": "两端必须完全一致，建议改为随机字符串，勿使用默认值",
+        "hint": "两端必须完全一致",
         "type": "string",
-        "secret": True,
-    },
-    "default_server_id": {
-        "description": "默认服务器实例 ID",
-        "hint": "AI 工具未指定 server 时使用的默认实例",
-        "type": "string",
-    },
-    "heartbeat_timeout": {
-        "description": "心跳超时秒数",
-        "hint": "超过该时间未收到心跳则判定客户端离线",
-        "type": "int",
-    },
-    "rpc_timeout": {
-        "description": "RPC 超时秒数",
-        "hint": "task/query 等待结果的最大秒数",
-        "type": "int",
-    },
-    "group_id_prefix": {
-        "description": "虚拟群 ID 前缀",
-        "hint": "生成格式: {prefix}:{server_id}，一般不需要修改",
-        "type": "string",
-    },
-    "bridge_on": {
-        "description": "开机自启 WS 服务",
-        "hint": "插件加载时自动启动 WebSocket 服务（运行中可用 Dashboard 按钮临时启停）",
-        "type": "bool",
-    },
-    "allowed_groups": {
-        "description": "允许使用的群号列表",
-        "hint": "留空表示所有群都可用；填写后仅这些群可使用 Minecraft Bridge 命令",
-        "type": "list",
-    },
-    "blocked_groups": {
-        "description": "禁止使用的群号列表",
-        "hint": "这些群无法使用 Minecraft Bridge 命令（优先级高于白名单）",
-        "type": "list",
-    },
-    "server_event_push_enabled": {
-        "description": "启用 Minecraft 事件推送",
-        "hint": "接收并投递 Mod 发来的玩家上下线、死亡和公开成就事件",
-        "type": "bool",
-    },
-    "minecraft_event_group": {
-        "description": "Minecraft 事件推送群号",
-        "hint": "留空不推送；填写后游戏事件会推送到该群",
-        "type": "string",
-    },
-    "inbound_max_message_length": {
-        "description": "入站消息最大长度",
-        "hint": "单条 Minecraft 消息转发到 AstrBot 前允许的最大长度，超出部分会被截断",
-        "type": "int",
-    },
-    "outbound_max_message_length": {
-        "description": "出站消息最大长度",
-        "hint": "AstrBot 回复广播到 Minecraft 前允许的最大长度，超出部分会被截断",
-        "type": "int",
-    },
-    "llm_reply_enabled": {
-        "description": "启用 LLM 自动回复",
-        "hint": "开启后，游戏内玩家聊天会触发 AI 自动回复",
-        "type": "bool",
-    },
-    "llm_reply_weight": {
-        "description": "LLM 回复触发权重",
-        "hint": "触发概率 = 权重 / 10。权重越高越容易触发 LLM 回复",
-        "type": "int",
-    },
-    "llm_prompt_template": {
-        "description": "LLM 回复提示模板",
-        "hint": "支持变量: {player_name} = 发言玩家名, {message} = 消息内容",
-        "type": "text",
-    },
-    "chat_rate_limit": {
-        "description": "发言频率限制",
-        "hint": "每个时间窗口内最多发送的消息数量（0=不限制）",
-        "type": "int",
-    },
-    "chat_rate_window": {
-        "description": "发言频率窗口（秒）",
-        "hint": "频率限制的时间窗口大小（秒）",
-        "type": "int",
-    },
-    "ai_companion_enabled": {
-        "description": "启用 AI 陪伴模式",
-        "hint": "AI 可围绕高层目标持续行动和搭话（Mod 端也必须同时启用）",
-        "type": "bool",
-    },
-    "blocked_users": {
-        "description": "用户黑名单",
-        "hint": "黑名单中的用户发送的消息不会被处理",
-        "type": "list",
     },
 }
 
 
-def _register_adapter():
-    global _registered
-    if _registered:
-        return
-    _registered = True
+@register_platform_adapter(
+    "minecraft_bridge",
+    "Minecraft Bridge（ZenithProxy WebSocket 桥接）",
+    default_config_tmpl={},
+    config_metadata=_config_metadata,
+)
+class MinecraftPlatformAdapter(Platform):
+    """Minecraft Bridge 平台适配器。
 
-    @register_platform_adapter(
-        "minecraft_bridge",
-        "Minecraft Bridge（ZenithProxy WebSocket 桥接）",
-        default_config_tmpl={},
-        config_metadata=CONFIG_METADATA,
-    )
-    class MinecraftPlatformAdapter(Platform):
-        """把游戏内聊天室映射为 AstrBot 的一个虚拟群会话。"""
+    直接启动 WebSocket 服务端接收 ZenithProxy 连接，
+    将事件通过 commit_event() 提交到 AstrBot 事件队列。
+    """
 
-        def __init__(
-            self,
-            platform_config: dict,
-            platform_settings: dict,
-            event_queue: asyncio.Queue,
-        ) -> None:
-            super().__init__(platform_config, event_queue)
-            self.settings = platform_settings
-            self.bridge = BridgeManager.get_instance()
-            self._dedup_cache: dict[str, float] = {}
-            self._dedup_window = 2.0
+    def __init__(
+        self,
+        platform_config: dict,
+        platform_settings: dict,
+        event_queue: asyncio.Queue,
+    ) -> None:
+        super().__init__(platform_config or {}, event_queue)
+        self.settings = platform_settings
+        self.bridge = BridgeManager.get_instance()
+        self._dedup_cache: dict[str, float] = {}
+        self._dedup_window = 2.0
+        self._runner: Optional[web.AppRunner] = None
+        self._conn: Optional[BridgeConnection] = None
+        self._page_push_callback = None
 
-        def meta(self) -> PlatformMetadata:
-            return PlatformMetadata(
-                name="minecraft_bridge",
-                description="Minecraft Bridge（ZenithProxy WebSocket 桥接）",
-                id="minecraft_bridge",
-            )
+    def meta(self) -> PlatformMetadata:
+        return PlatformMetadata(
+            name="minecraft_bridge",
+            description="Minecraft Bridge（ZenithProxy WebSocket 桥接）",
+        )
 
-        async def run(self) -> None:
-            """阻塞消费 BridgeManager 的 chat 事件队列。"""
-            import random
-            logger.info("Minecraft Platform Adapter 已启动")
-            while True:
-                try:
-                    item = await self.bridge.event_queue.get()
-                    event_type = item.get("event_type")
-                    logger.info(f"[{item.get('server_id', '?')}] adapter收到事件: type={event_type}, data_keys={list(item.get('data', {}).keys()) if isinstance(item.get('data'), dict) else '?'}")
-                    if event_type in (EVENT_CHAT, EVENT_WHISPER):
-                        abm = await self.convert_message(item)
-                        if abm is not None and not self._is_duplicate(item):
-                            await self.handle_msg(abm)
-                            # LLM 自动回复
-                            if event_type == EVENT_CHAT and self._should_llm_reply():
-                                await self._try_llm_reply(item)
-                        # 推送到 Dashboard（包括重复的，因为用户可能想看）
-                        payload = item.get("data", {})
-                        cb = getattr(self.bridge, "page_push_callback", None)
-                        if cb and event_type == EVENT_CHAT:
-                            cb(item.get("server_id", ""), payload.get("sender", ""), payload.get("message", ""))
-                        elif cb and event_type == EVENT_WHISPER:
-                            sender = payload.get("sender", "")
-                            message = payload.get("message", "")
-                            cb(item.get("server_id", ""), sender, f"[私聊] {message}")
+    def set_page_push_callback(self, callback):
+        """设置 Dashboard 消息推送回调。"""
+        self._page_push_callback = callback
+
+    # ---- WebSocket 服务端 ----
+
+    async def run(self) -> None:
+        """启动 WebSocket 服务端，接收 ZenithProxy 连接。"""
+        config = self.bridge.config
+        host = config.get("ws_host", "0.0.0.0")
+        port = int(config.get("ws_port", 8765))
+        path = config.get("ws_path", "/ws")
+
+        app = web.Application()
+        app.router.add_get(path, self._handle_websocket)
+        self._runner = web.AppRunner(app)
+        try:
+            await self._runner.setup()
+            site = web.TCPSite(self._runner, host, port)
+            await site.start()
+            logger.info(f"MC Bridge WS 已监听: ws://{host}:{port}{path}")
+
+            # 启动心跳监控
+            asyncio.create_task(self.bridge.registry.monitor())
+
+            await asyncio.Event().wait()  # 永久阻塞
+        except Exception as e:
+            logger.error(f"MC Bridge WS 启动失败: {e}")
+
+    async def _handle_websocket(self, request: web.Request) -> web.WebSocketResponse:
+        """处理 WebSocket 连接。"""
+        ws = web.WebSocketResponse(heartbeat=30, max_msg_size=1024 * 1024)
+        await ws.prepare(request)
+
+        # 鉴权
+        auth = request.headers.get("Authorization", "")
+        token = self.bridge.config.get("shared_token", "change-me")
+        if not auth.startswith("Bearer ") or auth[7:].strip() != token:
+            logger.warning(f"WS 鉴权失败: {request.remote}")
+            await ws.close()
+            return ws
+
+        logger.info(f"MC Bridge 收到连接: {request.remote}")
+
+        conn: Optional[BridgeConnection] = None
+        try:
+            async for msg in ws:
+                if msg.type == WSMsgType.TEXT:
+                    data = protocol.parse_message(msg.data)
+                    if not data:
+                        continue
+                    msg_type = data.get("type")
+
+                    if conn is None:
+                        if msg_type == protocol.MSG_HELLO:
+                            server_id = data.get("server_id") or "default"
+                            conn = BridgeConnection(server_id, ws, self.bridge.registry.pending)
+                            conn.apply_hello(data)
+                            await self.bridge.registry.register(conn)
+                            conn.touch()
+                            await conn.send_hello_ack()
+                            logger.info(f"[{server_id}] hello 握手完成 (account={conn.account}, hwid={conn.hwid})")
+                        elif msg_type == protocol.MSG_HEARTBEAT:
+                            server_id = data.get("server_id") or "default"
+                            conn = BridgeConnection(server_id, ws, self.bridge.registry.pending)
+                            await self.bridge.registry.register(conn)
+                            conn.touch()
+                            await conn.send_heartbeat_ack()
+                            logger.info(f"[{server_id}] heartbeat 握手完成（兼容模式）")
+                        else:
+                            break
                     else:
-                        # 非聊天事件也需要去重
-                        if self._is_duplicate(item):
+                        conn.touch()
+                        if msg_type == protocol.MSG_UPDATE_INFO:
+                            new_server_id = data.get("server_id")
+                            if new_server_id and new_server_id != conn.server_id:
+                                old_id = conn.server_id
+                                await self.bridge.registry.unregister(old_id, "server_id updated")
+                                conn.server_id = new_server_id
+                                conn.apply_hello(data)
+                                await self.bridge.registry.register(conn)
+                                logger.info(f"[{old_id}] server_id 更新为: {new_server_id}")
+                                await ws.send_json({
+                                    "type": protocol.MSG_UPDATE_INFO_ACK,
+                                    "server_id": new_server_id,
+                                    "timestamp": protocol.now(),
+                                })
                             continue
-                    # 所有事件都尝试推送到群（包括聊天）
-                    await self._push_event_to_group(item)
-                    # 所有事件都推送到 Dashboard
-                    if event_type not in (EVENT_CHAT, EVENT_WHISPER):
-                        cb = getattr(self.bridge, "page_push_callback", None)
-                        if cb:
-                            payload = item.get("data", {})
-                            player = payload.get("player", "")
-                            if event_type == EVENT_PLAYER_JOIN:
-                                cb(item.get("server_id", ""), "System", f"{player} 加入了游戏")
-                            elif event_type == EVENT_PLAYER_LEAVE:
-                                cb(item.get("server_id", ""), "System", f"{player} 离开了游戏")
-                            elif event_type == EVENT_DEATH:
-                                death_msg = payload.get("death_message", payload.get("message", ""))
-                                cb(item.get("server_id", ""), "System", death_msg or "Bot 死亡了")
-                            elif event_type == EVENT_ACHIEVEMENT:
-                                ach = payload.get("achievement", "")
-                                cb(item.get("server_id", ""), "System", f"{player} 达成成就: {ach}")
-                            elif event_type == EVENT_SYSTEM:
-                                cb(item.get("server_id", ""), "System", payload.get("message", ""))
-                            elif event_type == EVENT_BOT_STATUS:
-                                status = payload.get("status", "unknown")
-                                bot_name = payload.get("bot_name", "")
-                                cb(item.get("server_id", ""), "System", f"[{bot_name}] 状态: {status}")
-                        logger.debug(f"收到事件: {event_type}")
-                except asyncio.CancelledError:
+
+                        # 处理事件
+                        if msg_type == protocol.MSG_EVENT:
+                            await self._handle_event(conn.server_id, data)
+                        elif msg_type == protocol.MSG_HEARTBEAT:
+                            await conn.send_heartbeat_ack()
+                        elif msg_type == protocol.MSG_TASK_RESULT:
+                            self.bridge.registry.pending.resolve(
+                                data.get("task_id", ""),
+                                bool(data.get("success")),
+                                error_message=data.get("error_message"),
+                            )
+                        elif msg_type == protocol.MSG_QUERY_RESULT:
+                            self.bridge.registry.pending.resolve(
+                                data.get("query_id", ""),
+                                bool(data.get("success")),
+                                data=data.get("data"),
+                                error_message=data.get("error_message"),
+                            )
+                elif msg.type == WSMsgType.ERROR:
                     break
-                except Exception as e:  # noqa: BLE001
-                    logger.error(f"Minecraft Adapter 事件处理异常: {e}")
-
-        async def _push_event_to_group(self, item: dict) -> None:
-            """推送游戏事件到配置的群聊。"""
-            event_type = item.get("event_type")
-            server_id = item.get("server_id", "default")
-            payload = item.get("data", {})
-
-            logger.debug(f"[{server_id}] _push_event_to_group: event_type={event_type}")
-
-            # 检查推送开关（每事件类型独立配置）
-            push_key = f"push_{event_type}"
-            if not self.bridge.config.get(push_key, False):
-                logger.debug(f"[{server_id}] {push_key}=False, 跳过")
-                return
-
-            event_group = self.bridge.config.get("minecraft_event_group", "")
-            if not event_group:
-                logger.debug(f"[{server_id}] minecraft_event_group 为空, 跳过")
-                return
-
-            # 时间窗口去重：同类型事件 30 秒内不重复推送
-            import time
-            if not hasattr(self, '_qq_push_last'):
-                self._qq_push_last = {}
-            dedup_key = f"{server_id}:{event_type}"
-            now_ts = time.time()
-            last_ts = self._qq_push_last.get(dedup_key, 0)
-            if now_ts - last_ts < 30:
-                logger.debug(f"[{server_id}] {event_type} 30秒内已推送, 跳过")
-                return
-            self._qq_push_last[dedup_key] = now_ts
-
-            # 获取实际 MC 账号名（优先用 account，fallback 到 server_id）
-            conn_info = self.bridge.registry.get_connection_info(server_id)
-            account = (conn_info or {}).get("account", "") or server_id
-
-            # 格式化消息（用 account 显示）
-            from datetime import datetime
-            now = datetime.now().strftime("%H:%M:%S")
-            msg = None
-            if event_type == EVENT_CHAT:
-                msg = f"[{now}] [{account}] {payload.get('sender', 'unknown')}: {payload.get('message', '')}"
-            elif event_type == EVENT_WHISPER:
-                if not payload.get("outgoing"):
-                    msg = f"[{now}] [{account}] {payload.get('sender', 'unknown')} -> {payload.get('receiver', '')}: {payload.get('message', '')}"
-            elif event_type == EVENT_PLAYER_JOIN:
-                msg = f"[{now}] [{account}] 玩家 {payload.get('player', 'unknown')} 加入了游戏"
-            elif event_type == EVENT_PLAYER_LEAVE:
-                msg = f"[{now}] [{account}] 玩家 {payload.get('player', 'unknown')} 离开了游戏"
-            elif event_type == EVENT_DEATH:
-                msg = f"[{now}] [{account}] Bot 死亡了"
-            elif event_type == EVENT_ACHIEVEMENT:
-                msg = f"[{now}] [{account}] 玩家 {payload.get('player', 'unknown')} 达成了成就: {payload.get('achievement', '未知成就')}"
-            elif event_type == EVENT_SYSTEM:
-                system_msg = payload.get("message", "")
-                if system_msg:
-                    msg = f"[{now}] [{account}] 系统: {system_msg}"
-
-            if not msg:
-                return
-
-            # 内容过滤
-            if not self._is_safe_for_qq(msg):
-                logger.info(f"[{server_id}] 消息被内容过滤拦截: {msg[:50]}")
-                return
-
-            # 发送到 QQ 群
+        except Exception as e:
+            logger.error(f"MC Bridge WS 处理异常: {e}")
+        finally:
+            if conn is not None:
+                conn.closed = True
+                self.bridge.registry.pending.cancel_for(conn.server_id)
+                await self.bridge.registry.unregister(conn.server_id, "connection closed")
             try:
-                from astrbot.api.event import MessageChain
-                from astrbot.api.message_components import Plain
-                chain = MessageChain([Plain(text=msg)])
+                await ws.close()
+            except Exception:
+                pass
+        return ws
 
-                qq_platform_id = None
-                for platform in self.bridge.context.platform_manager.platform_insts:
-                    if platform.meta().name in ("aiocqhttp", "qqofficial", "qqofficial_webhook"):
-                        qq_platform_id = platform.meta().id
-                        break
-                if not qq_platform_id:
-                    logger.warning(f"[{server_id}] 未找到 QQ 平台适配器，跳过推送")
-                    return
+    # ---- 事件处理 ----
 
-                session = f"{qq_platform_id}:GroupMessage:{event_group}"
-                logger.info(f"[{server_id}] 尝试推送到 session={session}: {msg[:80]}")
-                await self.bridge.context.send_message(session, chain)
-                logger.info(f"[{server_id}] 已推送到群 {event_group}: {msg[:50]}...")
+    async def _handle_event(self, server_id: str, data: dict) -> None:
+        """处理来自 ZenithProxy 的事件消息。"""
+        event_type = data.get("event_type")
+        payload = data.get("data", {})
+
+        if not event_type:
+            return
+
+        # chat/whisper → commit_event() 到 AstrBot
+        if event_type in (protocol.EVENT_CHAT, protocol.EVENT_WHISPER):
+            await self._handle_chat_event(server_id, event_type, payload)
+        else:
+            # 非聊天事件 → 推送到 Dashboard + AstrBot 路由到 QQ
+            self._push_to_dashboard(server_id, event_type, payload)
+            await self._commit_server_event(server_id, event_type, payload)
+
+    async def _handle_chat_event(self, server_id: str, event_type: str, payload: dict) -> None:
+        """处理聊天事件，通过 AstrBot 管道路由。"""
+        sender = payload.get("sender", "unknown")
+        message = payload.get("message", "")
+        if not message:
+            return
+
+        # 去重
+        dedup_key = f"{server_id}:{sender}:{message}"
+        now = time.time()
+        if now - self._dedup_cache.get(dedup_key, 0) < self._dedup_window:
+            return
+        self._dedup_cache[dedup_key] = now
+        if len(self._dedup_cache) > 500:
+            self._dedup_cache.clear()
+
+        # 推送到 Dashboard
+        cb = self._page_push_callback or getattr(self.bridge, "page_push_callback", None)
+        if cb:
+            if event_type == protocol.EVENT_WHISPER:
+                cb(server_id, sender, f"[私聊] {message}")
+            else:
+                cb(server_id, sender, message)
+
+        # 构造 AstrBotMessage
+        abm = AstrBotMessage()
+        abm.type = MessageType.GROUP_MESSAGE
+        abm.group_id = f"minecraft:{server_id}"
+        abm.message_str = message
+        abm.sender = MessageMember(user_id=sender, nickname=sender)
+        abm.message = [Plain(text=message)]
+        abm.raw_message = payload
+        abm.self_id = server_id
+        abm.session_id = f"{server_id}:{sender}"
+        abm.message_id = str(protocol.gen_id())
+
+        event = MinecraftEvent(
+            message_str=message,
+            message_obj=abm,
+            platform_meta=self.meta(),
+            session_id=abm.session_id,
+            server_id=server_id,
+        )
+        self.commit_event(event)
+
+        # LLM 自动回复
+        if event_type == protocol.EVENT_CHAT and self._should_llm_reply():
+            await self._try_llm_reply(server_id, sender, message)
+
+    async def _commit_server_event(self, server_id: str, event_type: str, payload: dict) -> None:
+        """将非聊天事件提交到 AstrBot 事件队列（路由到 QQ）。"""
+        account = self._get_account(server_id)
+        msg = self._format_event_message(account, event_type, payload)
+        if not msg:
+            return
+
+        abm = AstrBotMessage()
+        abm.type = MessageType.GROUP_MESSAGE
+        abm.group_id = f"minecraft:{server_id}"
+        abm.message_str = msg
+        abm.sender = MessageMember(user_id="system", nickname="Minecraft")
+        abm.message = [Plain(text=msg)]
+        abm.raw_message = payload
+        abm.self_id = server_id
+        abm.session_id = f"minecraft:{server_id}"
+        abm.message_id = str(protocol.gen_id())
+
+        event = MinecraftEvent(
+            message_str=msg,
+            message_obj=abm,
+            platform_meta=self.meta(),
+            session_id=abm.session_id,
+            server_id=server_id,
+        )
+        self.commit_event(event)
+
+    def _push_to_dashboard(self, server_id: str, event_type: str, payload: dict) -> None:
+        """推送非聊天事件到 Dashboard。"""
+        cb = self._page_push_callback or getattr(self.bridge, "page_push_callback", None)
+        if not cb:
+            return
+        player = payload.get("player", "")
+        if event_type == protocol.EVENT_PLAYER_JOIN:
+            cb(server_id, "System", f"{player} 加入了游戏")
+        elif event_type == protocol.EVENT_PLAYER_LEAVE:
+            cb(server_id, "System", f"{player} 离开了游戏")
+        elif event_type == protocol.EVENT_DEATH:
+            cb(server_id, "System", payload.get("death_message", payload.get("message", "Bot 死亡了")))
+        elif event_type == protocol.EVENT_ACHIEVEMENT:
+            cb(server_id, "System", f"{player} 达成成就: {payload.get('achievement', '')}")
+        elif event_type == protocol.EVENT_SYSTEM:
+            cb(server_id, "System", payload.get("message", ""))
+        elif event_type == protocol.EVENT_BOT_STATUS:
+            cb(server_id, "System", f"[{payload.get('bot_name', '')}] 状态: {payload.get('status', '')}")
+
+    def _get_account(self, server_id: str) -> str:
+        """获取实际 MC 账号名。"""
+        conn_info = self.bridge.registry.get_connection_info(server_id)
+        return (conn_info or {}).get("account", "") or server_id
+
+    def _format_event_message(self, account: str, event_type: str, payload: dict) -> str:
+        """格式化非聊天事件消息（用于 QQ 推送）。"""
+        if event_type == protocol.EVENT_PLAYER_JOIN:
+            return f"玩家 {payload.get('player', 'unknown')} 加入了游戏"
+        elif event_type == protocol.EVENT_PLAYER_LEAVE:
+            return f"玩家 {payload.get('player', 'unknown')} 离开了游戏"
+        elif event_type == protocol.EVENT_DEATH:
+            return f"Bot 死亡了"
+        elif event_type == protocol.EVENT_ACHIEVEMENT:
+            return f"玩家 {payload.get('player', 'unknown')} 达成成就: {payload.get('achievement', '')}"
+        elif event_type == protocol.EVENT_SYSTEM:
+            return payload.get("message", "")
+        return ""
+
+    # ---- LLM 自动回复 ----
+
+    def _should_llm_reply(self) -> bool:
+        """根据权重判断是否触发 LLM 回复。"""
+        config = self.bridge.config
+        if not config.get("llm_reply_enabled", False):
+            return False
+        weight = int(config.get("llm_reply_weight", 1))
+        if weight <= 0:
+            return False
+        import random
+        return random.randint(1, 10) <= weight
+
+    async def _try_llm_reply(self, server_id: str, sender: str, message: str) -> None:
+        """尝试 LLM 自动回复。"""
+        try:
+            from astrbot.api import get_astrbot_instance
+            astrbot = get_astrbot_instance()
+            if not astrbot:
+                return
+            template = self.bridge.config.get("llm_prompt_template", "")
+            prompt = template.replace("{player_name}", sender).replace("{message}", message)
+            # 简单实现：通过 AstrBot 的文本处理
+            logger.debug(f"[{server_id}] LLM 回复触发: {sender}: {message}")
+        except Exception as e:
+            logger.debug(f"LLM 回复失败: {e}")
+
+    # ---- 消息发送 ----
+
+    async def send_by_session(self, session: MessageSesion, message_chain: MessageChain):
+        """AstrBot 回复时调用：提取纯文本，发送到对应 Minecraft 实例。"""
+        content = self._plain_text(message_chain)
+        if not content:
+            return
+
+        # 从 session 提取 server_id
+        session_id = getattr(session, "session_id", "") or ""
+        server_id = session_id.split(":")[0] if session_id else ""
+
+        if server_id:
+            # 发送到指定实例
+            try:
+                await self.bridge.send_chat(server_id, content)
             except Exception as e:
-                logger.warning(f"[{server_id}] 推送到群失败: {e}", exc_info=True)
-
-        def _is_safe_for_qq(self, msg: str) -> bool:
-            """检查消息是否适合推送到 QQ（防止触发腾讯封禁）。"""
-            if not self.bridge.config.get("qq_content_filter", True):
-                return True
-            if not msg:
-                return False
-
-            import re
-            text = msg.lower()
-
-            # 尝试从 group_guardian 词库加载（如果已安装）
-            if not hasattr(self, '_gg_matcher'):
-                self._gg_matcher = None
+                logger.error(f"[{server_id}] 游戏内发送失败: {e}")
+        else:
+            # 兜底：广播到所有在线实例
+            for sid in self.bridge.registry.server_ids:
                 try:
-                    import sys, os
-                    gg_path = os.path.join(
-                        os.path.dirname(os.path.dirname(__file__)),
-                        "astrbot_plugin_group_guardian"
-                    )
-                    if os.path.isdir(gg_path) and gg_path not in sys.path:
-                        sys.path.insert(0, gg_path)
-                    from automaton import KeywordAutomaton
-                    import sqlite3
-                    lexicon_db = os.path.join(gg_path, "lexicon.db")
-                    if os.path.isfile(lexicon_db):
-                        conn = sqlite3.connect(lexicon_db)
-                        rows = conn.execute("SELECT keyword FROM lexicon_keywords").fetchall()
-                        conn.close()
-                        if rows:
-                            auto = KeywordAutomaton()
-                            auto.add_keywords([r[0] for r in rows if r[0]])
-                            self._gg_matcher = auto
+                    await self.bridge.send_chat(sid, content)
                 except Exception:
                     pass
 
-            # 使用 group_guardian 词库检测
-            if self._gg_matcher is not None:
-                if self._gg_matcher.first_match(text):
-                    return False
-
-            # 内置高风险正则
-            _BUILTIN_BLOCKED = [
-                r"习近平|毛泽东|共产党|国民党|六四|天安门|法轮功|达赖|台独|藏独|疆独",
-                r"翻墙|VPN|科学上网|shadowsocks|v2ray|trojan",
-                r"赌博|博彩|彩票|百家乐|太阳城|网赌|赌球|赌马|外围|庄家|赔率",
-                r"色情|黄片|约炮|一夜情|援交|裸聊|自慰|阴茎|阴道|性交|做爱",
-                r"刷单|兼职|日赚|月入|稳赚|保本|高回报|传销|庞氏|资金盘",
-                r"冰毒|大麻|海洛因|摇头丸|K粉|可卡因|吸毒|贩毒|制毒",
-                r"自杀|自残|上吊|跳楼|割腕|安眠药",
-                r"枪支|炸药|炸弹|管制刀具|雷管",
-                r"加微信|加QQ|扫码|免费领|点击链接|转账|红包返利",
-            ]
-
-            for pattern in _BUILTIN_BLOCKED:
-                if re.search(pattern, text):
-                    return False
-
-            # 检测 [] 括号内的内容
-            bracket_contents = re.findall(r'\[([^\]]+)\]', msg)
-            for content in bracket_contents:
-                content_lower = content.lower()
-                for pattern in _BUILTIN_BLOCKED:
-                    if re.search(pattern, content_lower):
-                        return False
-                custom_words = self.bridge.config.get("qq_blocked_words", [])
-                for word in custom_words:
-                    if word and word.lower() in content_lower:
-                        return False
-
-            # 自定义违禁词
-            custom_words = self.bridge.config.get("qq_blocked_words", [])
-            for word in custom_words:
-                if word and word.lower() in text:
-                    return False
-
-            return True
-
-        def _should_llm_reply(self) -> bool:
-            """根据权重判断是否触发 LLM 回复。"""
-            config = self.bridge.config
-            if not config.get("llm_reply_enabled", False):
-                return False
-            weight = int(config.get("llm_reply_weight", 0))
-            if weight <= 0:
-                return False
-            # 简单概率触发：权重越高越容易触发
-            # 权重 1 = 10% 概率，权重 5 = 50% 概率，权重 10 = 100% 概率
-            return random.random() < (weight / 10.0)
-
-        async def _try_llm_reply(self, item: dict) -> None:
-            """尝试调用 LLM 生成回复。"""
-            try:
-                payload = item.get("data", {})
-                player_name = payload.get("sender", "unknown")
-                message = payload.get("message", "")
-                server_id = item.get("server_id", "default")
-
-                # 格式化提示模板
-                template = self.bridge.config.get("llm_prompt_template", "")
-                if not template:
-                    return
-                prompt = template.replace("{player_name}", player_name).replace("{message}", message)
-
-                # 通过 AstrBot context 调用 LLM
-                context = getattr(self.bridge, 'context', None)
-                if context is None:
-                    logger.warning("LLM 回复失败: 无法获取 AstrBot context")
-                    return
-
-                # 获取默认 chat provider
-                provider_id = context.provider_manager.default_chat_provider_id
-                if not provider_id:
-                    logger.warning("LLM 回复失败: 未配置聊天模型")
-                    return
-
-                logger.info(f"[{server_id}] LLM 回复触发: player={player_name}, msg={message[:50]}...")
-
-                # 调用 LLM
-                from astrbot.core.agent.message import UserMessageSegment, TextPart
-                user_msg = UserMessageSegment(content=[TextPart(text=prompt)])
-                llm_resp = await context.llm_generate(
-                    chat_provider_id=provider_id,
-                    contexts=[user_msg],
-                )
-
-                # 发送回复到游戏
-                reply_text = llm_resp.completion_text if hasattr(llm_resp, 'completion_text') else str(llm_resp)
-                if reply_text:
-                    await self.bridge.send_chat(server_id, reply_text)
-                    logger.info(f"[{server_id}] LLM 回复已发送: {reply_text[:50]}...")
-
-            except Exception as e:
-                logger.error(f"LLM 回复失败: {e}")
-
-        async def convert_message(self, data: dict) -> AstrBotMessage | None:
-            """将桥接事件字典转换为 AstrBotMessage。
-
-            data = {"server_id","event_type","data": {...},"timestamp"}
-            其中 data.data = {"sender","message","outgoing","receiver",...}
-            """
-            server_id = data.get("server_id", "default")
-            payload = data.get("data", {})
-            event_type = data.get("event_type")
-
-            if event_type == EVENT_WHISPER:
-                if payload.get("outgoing"):
-                    # bot 发出的私聊，忽略避免回路
-                    return None
-                sender = payload.get("sender", "unknown")
-                message = payload.get("message", "")
-            else:  # EVENT_CHAT
-                sender = payload.get("sender", "unknown")
-                message = payload.get("message", "")
-
-            if not message:
-                return None
-
-            # 检查用户黑名单
-            if self._is_blocked_user(sender):
-                logger.debug(f"忽略黑名单用户 {sender} 的消息")
-                return None
-
-            # 入站消息长度限制
-            max_len = int(self.bridge.config.get("inbound_max_message_length", 1000))
-            if max_len > 0 and len(message) > max_len:
-                message = message[:max_len] + "..."
-
-            abm = AstrBotMessage()
-            abm.type = MessageType.GROUP_MESSAGE
-            group_id = self._group_id(server_id)
-            abm.group_id = group_id
-            abm.message_str = message
-            abm.sender = MessageMember(user_id=sender, nickname=sender)
-            abm.message = [Plain(text=message)]
-            abm.self_id = f"minecraft:{server_id}"
-            abm.session_id = group_id
-            abm.message_id = str(uuid.uuid4())
-            abm.raw_message = data
-            return abm
-
-        async def handle_msg(self, message: AstrBotMessage) -> None:
-            """包装为 MinecraftEvent 并提交到事件队列。"""
-            server_id = message.self_id.split(":", 1)[1] if ":" in message.self_id else "default"
-            message_event = MinecraftEvent(
-                message_str=message.message_str,
-                message_obj=message,
-                platform_meta=self.meta(),
-                session_id=message.session_id,
-                server_id=server_id,
-            )
-            self.commit_event(message_event)
-
-        async def send_by_session(self, session: MessageSesion, message_chain: MessageChain) -> None:
-            """通过会话 ID 主动推送消息到游戏内。"""
-            text = "".join(c.text if isinstance(c, Plain) else "" for c in message_chain.chain)
-            text = text.strip()
-            if text:
-                # session_id 格式为 minecraft:{server_id}
-                parts = session.session_id.split(":", 1)
-                server_id = parts[1] if len(parts) > 1 else self.bridge.config.get("default_server_id", "default")
-                try:
-                    await self.bridge.send_chat(server_id, text)
-                except Exception as e:  # noqa: BLE001
-                    logger.error(f"[{server_id}] 推送失败: {e}")
-            await super().send_by_session(session, message_chain)
-
-        # ---- 工具方法 ----
-
-        def _group_id(self, server_id: str) -> str:
-            prefix = self.bridge.config.get("group_id_prefix", "minecraft")
-            return f"{prefix}:{server_id}"
-
-        def _is_blocked_user(self, user_id: str) -> bool:
-            """检查用户是否在黑名单中。"""
-            blocked_users = self.bridge.config.get("blocked_users", [])
-            if not blocked_users:
-                return False
-            return str(user_id) in [str(u) for u in blocked_users]
-
-        def _is_group_blocked(self, group_id: str) -> bool:
-            """检查群是否在禁止列表中。"""
-            blocked_groups = self.bridge.config.get("blocked_groups", [])
-            if blocked_groups and group_id in blocked_groups:
-                return True
-            allowed_groups = self.bridge.config.get("allowed_groups", [])
-            if allowed_groups and group_id not in allowed_groups:
-                return True
-            return False
-
-        def _is_event_group_allowed(self) -> bool:
-            """检查事件推送目标群是否在白名单中。"""
-            event_group = self.bridge.config.get("minecraft_event_group", "")
-            if not event_group:
-                return False  # 未配置则不推送
-            return not self._is_group_blocked(event_group)
-
-        def _guard(self, user_id: str, group_id: str = None) -> bool:
-            """权限守卫：检查用户和群是否被允许。返回 True 表示允许。"""
-            if self._is_blocked_user(user_id):
-                logger.debug(f"用户 {user_id} 在黑名单中，忽略")
-                return False
-            if group_id and self._is_group_blocked(group_id):
-                logger.debug(f"群 {group_id} 不在白名单或在黑名单中，忽略")
-                return False
-            return True
-
-        def _is_duplicate(self, item: dict) -> bool:
-            """消息去重：同一事件类型 + 关键内容 + 时间窗内丢弃。"""
-            if not self._dedup_window:
-                return False
-            
-            event_type = item.get("event_type")
-            server_id = item.get("server_id")
-            payload = item.get("data", {})
-            now = asyncio.get_running_loop().time()
-            
-            # 根据事件类型生成去重 key
-            if event_type == "chat":
-                # 聊天: server_id + sender + message
-                key = f"chat|{server_id}|{payload.get('sender')}|{payload.get('message')}"
-            elif event_type == "whisper":
-                # 私聊: server_id + sender + receiver + message
-                key = f"whisper|{server_id}|{payload.get('sender')}|{payload.get('receiver')}|{payload.get('message')}"
-            elif event_type == "player_join":
-                # 加入: server_id + player
-                key = f"player_join|{server_id}|{payload.get('player')}"
-            elif event_type == "player_leave":
-                # 离开: server_id + player
-                key = f"player_leave|{server_id}|{payload.get('player')}"
-            elif event_type == "death":
-                # 死亡: server_id + death (固定 key，同一服务器短时间内只记录一次)
-                key = f"death|{server_id}"
-            elif event_type == "achievement":
-                # 成就: server_id + player + achievement
-                key = f"achievement|{server_id}|{payload.get('player')}|{payload.get('achievement')}"
-            elif event_type == "system":
-                # 系统消息: server_id + message
-                key = f"system|{server_id}|{payload.get('message')}"
-            else:
-                # 其他事件不去重
-                return False
-            
-            last = self._dedup_cache.get(key)
-            if last and (now - last) < self._dedup_window:
-                logger.debug(f"[{server_id}] 重复事件已过滤: {event_type}")
-                return True
-            self._dedup_cache[key] = now
-            
-            # 简单清理：超过 500 条清一次
-            if len(self._dedup_cache) > 500:
-                self._dedup_cache.clear()
-            return False
-
-
-def _ensure_registered():
-    """确保适配器已注册（由 main.py 调用）。"""
-    # 检查运行时状态中是否已有实例（热重载存活）
-    from ..bridge.runtime_state import get_adapter_instance
-    existing = get_adapter_instance("minecraft_bridge")
-    if existing is not None:
-        logger.debug("从运行时状态恢复适配器实例")
-    _register_adapter()
+    @staticmethod
+    def _plain_text(message_chain: MessageChain) -> str:
+        """从消息链提取纯文本。"""
+        parts = []
+        for item in message_chain.chain:
+            if isinstance(item, Plain):
+                parts.append(item.text)
+            elif hasattr(item, "text"):
+                parts.append(str(item.text))
+        return "".join(parts).strip()

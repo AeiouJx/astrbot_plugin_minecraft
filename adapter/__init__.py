@@ -1,3 +1,3 @@
-"""adapter 包 - minecraft 虚拟平台适配器。"""
+"""adapter 包 - Minecraft Bridge 平台适配器。"""
 
-from .minecraft_adapter import _ensure_registered
+from .minecraft_adapter import MinecraftPlatformAdapter  # noqa: F401
