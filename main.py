@@ -75,7 +75,7 @@ class MinecraftPlugin(Star):
             return
 
         text = f"[MC] {msg}"
-        session = f"{self._qq_platform_id}:group_message:{qq_group}"
+        session = f"{self._qq_platform_id}:GroupMessage:{qq_group}"
         chain = MessageChain()
         chain.chain.append(Plain(text=text))
         try:
