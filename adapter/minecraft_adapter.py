@@ -19,9 +19,9 @@ from astrbot.api.platform import (
     MessageMember,
     MessageType,
     PlatformMetadata,
-    MessageSesion,
     register_platform_adapter,
 )
+from astrbot.core.platform.message_session import MessageSesion
 from astrbot.api.event import MessageChain
 from astrbot.api.message_components import Plain
 
