@@ -79,7 +79,7 @@ class MinecraftPlugin(Star):
         if event.message_obj.sender.user_id != "system":
             msg = f"{event.message_obj.sender.nickname}: {msg}"
 
-        text = f"[{time.strftime('%H:%M:%S')}] [{event.server_id}] {msg}"
+        text = f"[{time.strftime('%H:%M:%S')}] [{event.server_id}]\n{msg}"
         session = f"{self._qq_platform_id}:GroupMessage:{qq_group}"
         chain = MessageChain()
         chain.chain.append(Plain(text=text))
