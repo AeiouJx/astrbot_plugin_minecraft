@@ -31,26 +31,37 @@ from ..bridge.registry import Registry
 from ..bridge import protocol
 from .minecraft_event import MinecraftEvent
 
+_DEFAULT_CONFIG = {
+    "host": "0.0.0.0",
+    "port": 8765,
+    "path": "/ws",
+    "token": "change-me",
+}
+
 _config_metadata = {
     "host": {
         "description": "反向 WebSocket 主机",
-        "hint": "AstrBot 将作为 WebSocket 服务器端。",
         "type": "string",
+        "hint": "AstrBot 将作为 WebSocket 服务器端。单机部署保持 0.0.0.0；跨机器连接时改为可被 MC 服务器访问的地址。",
+        "default": "0.0.0.0",
     },
     "port": {
         "description": "反向 WebSocket 端口",
-        "hint": "需要与 ZenithProxy 插件 bridge.wsPort 一致；端口被占用时可以换成其他未使用端口",
         "type": "int",
+        "hint": "需要与 ZenithProxy 插件 bridge.wsPort 一致；端口被占用时可以换成其他未使用端口。",
+        "default": 8765,
     },
     "path": {
         "description": "WebSocket 路径",
-        "hint": "默认 /ws，两端需一致",
         "type": "string",
+        "hint": "默认 /ws，两端需一致。",
+        "default": "/ws",
     },
     "token": {
         "description": "连接认证 Token",
-        "hint": "两端必须完全一致；未设置则不启用 Token 验证",
         "type": "string",
+        "hint": "两端必须完全一致；未设置则不启用 Token 验证。建议把 change-me 改成较长的随机字符串。",
+        "default": "change-me",
     },
 }
 
@@ -58,7 +69,7 @@ _config_metadata = {
 @register_platform_adapter(
     "minecraft_bridge",
     "Minecraft Bridge（ZenithProxy WebSocket 桥接）",
-    default_config_tmpl={},
+    default_config_tmpl=_DEFAULT_CONFIG,
     config_metadata=_config_metadata,
 )
 class MinecraftPlatformAdapter(Platform):
