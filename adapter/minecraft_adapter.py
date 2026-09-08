@@ -96,6 +96,7 @@ class MinecraftPlatformAdapter(Platform):
 
     def meta(self) -> PlatformMetadata:
         return PlatformMetadata(
+            id="minecraft_bridge",
             name="minecraft_bridge",
             description="Minecraft Bridge（ZenithProxy WebSocket 桥接）",
         )
