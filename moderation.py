@@ -64,10 +64,10 @@ class ContentModerator:
         if not self.config.get("enable_ai_moderation", False):
             return True, ""
 
-        prompt = self.config.get("ai_moderation_prompt", "") or _DEFAULT_AI_PROMPT
+        prompt = self.config.get("llm_moderation_prompt", "") or _DEFAULT_AI_PROMPT
         full_prompt = f"{prompt}\n\n{message}"
 
-        provider_id = self.config.get("ai_moderation_provider", "") or None
+        provider_id = self.config.get("llm_moderation_provider", "") or None
 
         try:
             from astrbot.api.provider import ProviderRequest

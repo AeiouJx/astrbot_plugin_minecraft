@@ -71,13 +71,13 @@
         "hint": "开启后，推送到 QQ 的消息会先发送给 LLM 判断是否安全，不安全的内容不会推送。会消耗少量 API 额度。",
         "default": false
     },
-    "ai_moderation_provider": {
+    "llm_moderation_provider": {
         "description": "AI 审核使用的模型",
         "type": "string",
         "hint": "留空则使用 AstrBot 默认的 LLM Provider。可指定具体 Provider ID（如 zhipu/glm-4.5-air）以使用更便宜的模型。",
         "default": ""
     },
-    "ai_moderation_prompt": {
+    "llm_moderation_prompt": {
         "description": "AI 审核提示词",
         "type": "string",
         "hint": "自定义 AI 审核的判断标准。留空使用内置默认提示词。",
