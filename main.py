@@ -75,11 +75,9 @@ class MinecraftPlugin(Star):
         if blocked and any(w in msg for w in blocked):
             return
 
-        # Chat 消息格式: "||sender: message"，提取 sender
+        # Chat 消息：sender 单独显示
         if event.message_obj.sender.user_id != "system":
-            parts = msg.split(": ", 1)
-            if len(parts) == 2:
-                msg = f"{parts[0]}: {parts[1]}"
+            msg = f"{event.message_obj.sender.nickname}: {msg}"
 
         text = f"[{time.strftime('%H:%M:%S')}] [{event.server_id}] {msg}"
         session = f"{self._qq_platform_id}:GroupMessage:{qq_group}"
