@@ -159,7 +159,7 @@
         "items": {
             "weight": {
                 "description": "触发权重",
-                "hint": "触发概率 = 本权重 / 所有权重之和",
+                "hint": "触发概率 = 本权重 / 所有权重之和。设为 0 禁用 LLM 回复。",
                 "type": "int",
                 "slider": {
                     "min": 0,
@@ -168,6 +168,13 @@
                 },
                 "default": 10
             },
+            "provider": {
+                "description": "LLM 回复模型",
+                "type": "string",
+                "_special": "select_provider",
+                "hint": "选择用于 MC 聊天自动回复的模型提供商。留空使用 AstrBot 默认模型。",
+                "default": ""
+            },
             "template": {
                 "description": "LLM 提示模板",
                 "type": "text",
@@ -175,13 +182,6 @@
                 "default": "你是一个 Minecraft 游戏中的玩家。回复要简短（不超过50字符），口语化，像玩家聊天一样。不要用markdown格式。不要用emoji。"
             }
         }
-    },
-    "llm_reply_provider": {
-        "description": "LLM 回复模型",
-        "type": "string",
-        "_special": "select_provider",
-        "hint": "选择用于 MC 聊天自动回复的模型提供商。留空使用 AstrBot 默认模型。",
-        "default": ""
     },
     "focus_templates_list": {
         "description": "🎯 重点关注推送至群聊模板库",
