@@ -61,7 +61,7 @@ class ContentModerator:
 
     async def ai_check(self, message: str) -> tuple[bool, str]:
         """L3: AI 审核。返回 (是否放行, 拦截原因)。"""
-        if not self.config.get("enable_ai_moderation", False):
+        if not self.config.get("llm_moderation_enable", False):
             return True, ""
 
         prompt = self.config.get("llm_moderation_prompt", "") or _DEFAULT_AI_PROMPT

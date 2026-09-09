@@ -178,6 +178,8 @@ class MinecraftPlatformAdapter(Platform):
             server_id=server_id,
             event_type=event_type,
         )
+        if not self.config.get("llm_auto_reply", True):
+            event.no_auto_reply = True
         self.commit_event(event)
 
     def _handle_system_event(

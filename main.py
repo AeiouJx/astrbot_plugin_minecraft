@@ -100,6 +100,14 @@ class MinecraftPlugin(Star):
         except Exception as e:
             logger.warning(f"[MC→QQ] 推送失败: {e}")
 
+    # ==================== LLM 自动回复控制 ====================
+
+    @filter.on_llm_request()
+    @filter.priority(100)
+    async def on_llm_request(self, event: AstrMessageEvent) -> None:
+        if getattr(event, "no_auto_reply", False):
+            event.stop_propagation()
+
     # ==================== 命令 ====================
 
     @filter.command("mc")
