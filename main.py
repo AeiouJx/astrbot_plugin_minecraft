@@ -66,6 +66,20 @@ class MinecraftPlugin(Star):
             push = self.config.get("push_death", False)
         elif etype == protocol.EVENT_ACHIEVEMENT:
             push = self.config.get("push_achievement", False)
+        elif etype == protocol.EVENT_PLAYER_DEATH:
+            push = self.config.get("push_player_death", True)
+        elif etype in (protocol.EVENT_ATTACK, protocol.EVENT_CONNECTION_DENIED):
+            push = self.config.get("push_security", True)
+        elif etype in (protocol.EVENT_TOTEM_POP, protocol.EVENT_TOTEM_EMPTY):
+            push = self.config.get("push_totem", True)
+        elif etype in (protocol.EVENT_VISUAL_ENTER, protocol.EVENT_VISUAL_LEAVE, protocol.EVENT_VISUAL_LOGOUT):
+            push = self.config.get("push_visual", True)
+        elif etype in (protocol.EVENT_QUEUE_POSITION, protocol.EVENT_QUEUE_COMPLETE):
+            push = self.config.get("push_queue", True)
+        elif etype in (protocol.EVENT_HEALTH_WARNING, protocol.EVENT_HEALTH_AUTODISCONNECT):
+            push = self.config.get("push_health", True)
+        elif etype == protocol.EVENT_SCAN_FOUND:
+            push = self.config.get("push_scan", True)
         elif etype in (protocol.EVENT_SYSTEM, protocol.EVENT_BOT_STATUS):
             push = self.config.get("push_system", False)
         else:
@@ -96,6 +110,19 @@ class MinecraftPlugin(Star):
             protocol.EVENT_PLAYER_LEAVE: "leave",
             protocol.EVENT_DEATH: "death",
             protocol.EVENT_ACHIEVEMENT: "achievement",
+            protocol.EVENT_PLAYER_DEATH: "player_death",
+            protocol.EVENT_ATTACK: "attack",
+            protocol.EVENT_TOTEM_POP: "totem",
+            protocol.EVENT_TOTEM_EMPTY: "totem",
+            protocol.EVENT_VISUAL_ENTER: "visual",
+            protocol.EVENT_VISUAL_LEAVE: "visual",
+            protocol.EVENT_VISUAL_LOGOUT: "visual",
+            protocol.EVENT_CONNECTION_DENIED: "denied",
+            protocol.EVENT_QUEUE_POSITION: "queue",
+            protocol.EVENT_QUEUE_COMPLETE: "queue",
+            protocol.EVENT_HEALTH_WARNING: "health",
+            protocol.EVENT_HEALTH_AUTODISCONNECT: "health",
+            protocol.EVENT_SCAN_FOUND: "scan",
             protocol.EVENT_SYSTEM: "system",
             protocol.EVENT_BOT_STATUS: "status",
         }.get(etype, etype)
@@ -103,6 +130,12 @@ class MinecraftPlugin(Star):
             text = f"{event.message_obj.sender.nickname}: {msg}\n[{event.server_id}] [{etype_label}] [{time.strftime('%H:%M:%S')}]"
         else:
             text = f"{msg}\n[{event.server_id}] [{etype_label}] [{time.strftime('%H:%M:%S')}]"
+
+        # 安全事件加 ⚠ 前缀
+        if etype in (protocol.EVENT_ATTACK, protocol.EVENT_TOTEM_POP,
+                     protocol.EVENT_TOTEM_EMPTY, protocol.EVENT_HEALTH_WARNING,
+                     protocol.EVENT_HEALTH_AUTODISCONNECT, protocol.EVENT_CONNECTION_DENIED):
+            text = f"⚠ {text}"
 
         session = f"{self._qq_platform_id}:GroupMessage:{qq_group}"
         chain = MessageChain()
@@ -127,7 +160,10 @@ class MinecraftPlugin(Star):
 
         if etype not in (protocol.EVENT_CHAT, protocol.EVENT_WHISPER,
                          protocol.EVENT_PLAYER_JOIN, protocol.EVENT_PLAYER_LEAVE,
-                         protocol.EVENT_DEATH):
+                         protocol.EVENT_DEATH, protocol.EVENT_ACHIEVEMENT,
+                         protocol.EVENT_PLAYER_DEATH, protocol.EVENT_ATTACK,
+                         protocol.EVENT_VISUAL_ENTER, protocol.EVENT_VISUAL_LEAVE,
+                         protocol.EVENT_VISUAL_LOGOUT):
             return
 
         msg = event.message_str
@@ -142,6 +178,13 @@ class MinecraftPlugin(Star):
             text = f"{msg}\n[{event.server_id}] [death] [{ts}]"
         elif etype == protocol.EVENT_WHISPER:
             text = f"{sender_id}: {msg}\n[{event.server_id}] [whisper] [{ts}]"
+        elif etype == protocol.EVENT_PLAYER_DEATH:
+            text = f"{msg}\n[{event.server_id}] [player_death] [{ts}]"
+        elif etype == protocol.EVENT_ATTACK:
+            text = f"⚠ {sender_id} attacked Bot\n[{event.server_id}] [attack] [{ts}]"
+        elif etype in (protocol.EVENT_VISUAL_ENTER, protocol.EVENT_VISUAL_LEAVE, protocol.EVENT_VISUAL_LOGOUT):
+            vtype = etype.replace("visual_", "")
+            text = f"{sender_id} {vtype}d view\n[{event.server_id}] [visual] [{ts}]"
         else:
             text = f"{sender_id}: {msg}\n[{event.server_id}] [chat] [{ts}]"
 
@@ -163,6 +206,14 @@ class MinecraftPlugin(Star):
                 if etype in (protocol.EVENT_PLAYER_JOIN, protocol.EVENT_PLAYER_LEAVE) and not tpl.get("push_join_leave", True):
                     continue
                 if etype == protocol.EVENT_DEATH and not tpl.get("push_death", True):
+                    continue
+                if etype == protocol.EVENT_ACHIEVEMENT and not tpl.get("push_achievement", True):
+                    continue
+                if etype == protocol.EVENT_PLAYER_DEATH and not tpl.get("push_player_death", True):
+                    continue
+                if etype == protocol.EVENT_ATTACK and not tpl.get("push_attack", True):
+                    continue
+                if etype in (protocol.EVENT_VISUAL_ENTER, protocol.EVENT_VISUAL_LEAVE, protocol.EVENT_VISUAL_LOGOUT) and not tpl.get("push_visual", False):
                     continue
                 if self._match_focus_player(etype, sender_id, msg, tpl_players):
                     target_groups.add(tpl_group)

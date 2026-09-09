@@ -47,6 +47,48 @@
         "hint": "系统消息（如摔死、烧死等）推送到 QQ 群。",
         "default": false
     },
+    "push_player_death": {
+        "description": "推送玩家死亡",
+        "type": "bool",
+        "hint": "其他玩家（非Bot）死亡时推送到 QQ 群。",
+        "default": true
+    },
+    "push_security": {
+        "description": "推送安全事件",
+        "type": "bool",
+        "hint": "玩家攻击Bot、连接被拒等安全事件推送到 QQ 群。",
+        "default": true
+    },
+    "push_totem": {
+        "description": "推送 Totem 事件",
+        "type": "bool",
+        "hint": "Totem 弹出/耗尽事件推送到 QQ 群。",
+        "default": true
+    },
+    "push_visual": {
+        "description": "推送视野事件",
+        "type": "bool",
+        "hint": "玩家进入/离开Bot视野、视野内下线等事件推送到 QQ 群。",
+        "default": false
+    },
+    "push_queue": {
+        "description": "推送排队事件",
+        "type": "bool",
+        "hint": "进服排队位置/排队完成事件推送到 QQ 群。",
+        "default": true
+    },
+    "push_health": {
+        "description": "推送血量事件",
+        "type": "bool",
+        "hint": "Bot血量过低/低血自动断线事件推送到 QQ 群。",
+        "default": true
+    },
+    "push_scan": {
+        "description": "推送扫描事件",
+        "type": "bool",
+        "hint": "扫描发现目标方块/实体事件推送到 QQ 群。",
+        "default": true
+    },
     "qq_content_filter": {
         "description": "违禁词过滤 (L1)",
         "type": "bool",
@@ -163,6 +205,30 @@
                         "type": "bool",
                         "hint": "推送该玩家的死亡事件",
                         "default": true
+                    },
+                    "push_achievement": {
+                        "description": "推送成就",
+                        "type": "bool",
+                        "hint": "推送该玩家的成就事件",
+                        "default": true
+                    },
+                    "push_player_death": {
+                        "description": "推送玩家死亡",
+                        "type": "bool",
+                        "hint": "推送该玩家（非Bot）的死亡事件",
+                        "default": true
+                    },
+                    "push_attack": {
+                        "description": "推送攻击事件",
+                        "type": "bool",
+                        "hint": "推送该玩家攻击Bot的事件",
+                        "default": true
+                    },
+                    "push_visual": {
+                        "description": "推送视野事件",
+                        "type": "bool",
+                        "hint": "推送该玩家进入/离开Bot视野的事件",
+                        "default": false
                     },
                     "push_whisper": {
                         "description": "推送私聊",

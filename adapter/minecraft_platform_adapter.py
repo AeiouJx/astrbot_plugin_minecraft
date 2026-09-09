@@ -207,13 +207,64 @@ class MinecraftPlatformAdapter(Platform):
     def _format_event(self, event_type: str, payload: dict) -> str:
         player = payload.get("player", "unknown")
         if event_type == protocol.EVENT_PLAYER_JOIN:
-            return f"{player} joined the game"
+            return payload.get("message", f"{player} joined the game")
         elif event_type == protocol.EVENT_PLAYER_LEAVE:
-            return f"{player} left the game"
+            return payload.get("message", f"{player} left the game")
         elif event_type == protocol.EVENT_DEATH:
-            return payload.get("death_message", "Bot died")
+            pos = payload.get("position")
+            if pos:
+                return f"Bot died [{pos.get('x',0)},{pos.get('y',0)},{pos.get('z',0)}]"
+            return "Bot died"
         elif event_type == protocol.EVENT_ACHIEVEMENT:
             return f"{player} has made the advancement [{payload.get('achievement', '')}]"
+        elif event_type == protocol.EVENT_PLAYER_DEATH:
+            victim = payload.get("victim", "unknown")
+            killer = payload.get("killer")
+            weapon = payload.get("weapon")
+            text = f"{victim} was killed"
+            if killer:
+                text += f" by {killer}"
+            if weapon:
+                text += f" [{weapon}]"
+            return text
+        elif event_type == protocol.EVENT_ATTACK:
+            x, y, z = payload.get("x", 0), payload.get("y", 0), payload.get("z", 0)
+            return f"{player} attacked Bot [{x},{y},{z}]"
+        elif event_type == protocol.EVENT_TOTEM_POP:
+            remaining = payload.get("totems_remaining", "?")
+            return f"Totem popped, {remaining} remaining"
+        elif event_type == protocol.EVENT_TOTEM_EMPTY:
+            return "No totems left!"
+        elif event_type == protocol.EVENT_VISUAL_ENTER:
+            x, y, z = payload.get("x", 0), payload.get("y", 0), payload.get("z", 0)
+            return f"{player} entered view [{x},{y},{z}]"
+        elif event_type == protocol.EVENT_VISUAL_LEAVE:
+            x, y, z = payload.get("x", 0), payload.get("y", 0), payload.get("z", 0)
+            return f"{player} left view [{x},{y},{z}]"
+        elif event_type == protocol.EVENT_VISUAL_LOGOUT:
+            x, y, z = payload.get("x", 0), payload.get("y", 0), payload.get("z", 0)
+            return f"{player} logged out [{x},{y},{z}]"
+        elif event_type == protocol.EVENT_CONNECTION_DENIED:
+            reason = payload.get("reason", "unknown")
+            ip = payload.get("ip", "?")
+            return f"Denied {player} ({reason}, {ip})"
+        elif event_type == protocol.EVENT_QUEUE_POSITION:
+            pos = payload.get("position", "?")
+            return f"Queue position: {pos}"
+        elif event_type == protocol.EVENT_QUEUE_COMPLETE:
+            dur = payload.get("duration_seconds", "?")
+            return f"Queue complete ({dur}s)"
+        elif event_type == protocol.EVENT_HEALTH_WARNING:
+            hp = payload.get("health", "?")
+            return f"Low health: {hp}"
+        elif event_type == protocol.EVENT_HEALTH_AUTODISCONNECT:
+            return "Auto-disconnected due to low health"
+        elif event_type == protocol.EVENT_SCAN_FOUND:
+            target = payload.get("target", "?")
+            name = payload.get("name", "?")
+            x, y, z = payload.get("x", 0), payload.get("y", 0), payload.get("z", 0)
+            dist = payload.get("distance", "?")
+            return f"Scan found {target}: {name} [{x},{y},{z}] ({dist}m)"
         elif event_type == protocol.EVENT_SYSTEM:
             return payload.get("message", "")
         elif event_type == protocol.EVENT_BOT_STATUS:
