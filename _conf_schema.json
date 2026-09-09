@@ -110,6 +110,18 @@
         "hint": "开启后，玩家在 MC 聊天中 @Bot 或私聊 Bot 时，LLM 会自动生成回复。关闭则 Bot 不回复 MC 消息。",
         "default": true
     },
+    "focus_players": {
+        "description": "重点关注玩家列表",
+        "type": "list",
+        "hint": "填写 Minecraft 用户名（如 BadApple），这些玩家的聊天/加入/退出事件会推送到下方的重点关注群。留空不启用。",
+        "default": []
+    },
+    "focus_group": {
+        "description": "重点关注群号",
+        "type": "string",
+        "hint": "重点关注玩家的事件推送到此群。留空则不推送。可与上方的事件推送群相同或不同。",
+        "default": ""
+    },
     "allowed_groups": {
         "description": "允许使用的群号列表",
         "type": "list",

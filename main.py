@@ -80,10 +80,6 @@ class MinecraftPlugin(Star):
             logger.debug(f"[MC→QQ] 拦截: {reason} | {msg}")
             return
 
-        # Chat 消息：sender 单独显示
-        if event.message_obj.sender.user_id != "system":
-            msg = f"{event.message_obj.sender.nickname}: {msg}"
-
         # L3: AI 审核（仅聊天消息，异步）
         if etype == protocol.EVENT_CHAT:
             safe, reason = await self._moderator.ai_check(msg)
@@ -91,7 +87,13 @@ class MinecraftPlugin(Star):
                 logger.debug(f"[MC→QQ] AI 拦截: {reason} | {msg}")
                 return
 
-        text = f"[{event.server_id}] {msg}\n[{time.strftime('%H:%M:%S')}]"
+        # 格式化消息：sender: message [sender_id][server] [HH:MM:SS]
+        sender_id = event.message_obj.sender.user_id
+        if sender_id != "system":
+            text = f"{event.message_obj.sender.nickname}: {msg} [{sender_id}][{event.server_id}] [{time.strftime('%H:%M:%S')}]"
+        else:
+            text = f"{msg} [{event.server_id}] [{time.strftime('%H:%M:%S')}]"
+
         session = f"{self._qq_platform_id}:GroupMessage:{qq_group}"
         chain = MessageChain()
         chain.chain.append(Plain(text=text))
@@ -99,6 +101,55 @@ class MinecraftPlugin(Star):
             await self.context.send_message(session, chain)
         except Exception as e:
             logger.warning(f"[MC→QQ] 推送失败: {e}")
+
+    # ==================== 重点关注玩家推送 ====================
+
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=999)
+    async def on_focus_player_event(self, event: AstrMessageEvent) -> None:
+        """重点关注玩家事件推送到独立群。"""
+        if event.get_platform_id() != "minecraft":
+            return
+
+        focus_group = self.config.get("focus_group", "")
+        if not focus_group:
+            return
+
+        focus_players = self.config.get("focus_players", [])
+        if not focus_players:
+            return
+
+        from .adapter import protocol
+
+        etype = getattr(event, "platform_event_type", "")
+        sender_id = event.message_obj.sender.user_id
+
+        # 仅处理关注玩家的聊天、加入、退出事件
+        if etype not in (protocol.EVENT_CHAT, protocol.EVENT_WHISPER,
+                         protocol.EVENT_PLAYER_JOIN, protocol.EVENT_PLAYER_LEAVE):
+            return
+
+        if sender_id not in focus_players:
+            return
+
+        msg = event.message_str
+        ts = time.strftime('%H:%M:%S')
+
+        # 格式化消息
+        if etype in (protocol.EVENT_PLAYER_JOIN, protocol.EVENT_PLAYER_LEAVE):
+            action = "加入了游戏" if etype == protocol.EVENT_PLAYER_JOIN else "离开了游戏"
+            text = f"玩家 {sender_id} {action} [{event.server_id}] [{ts}]"
+        elif etype == protocol.EVENT_WHISPER:
+            text = f"{sender_id} 私聊: {msg} [{event.server_id}] [{ts}]"
+        else:
+            text = f"{sender_id}: {msg} [{event.server_id}] [{ts}]"
+
+        session = f"{self._qq_platform_id}:GroupMessage:{focus_group}"
+        chain = MessageChain()
+        chain.chain.append(Plain(text=text))
+        try:
+            await self.context.send_message(session, chain)
+        except Exception as e:
+            logger.warning(f"[MC→QQ] 重点关注推送失败: {e}")
 
     # ==================== LLM 自动回复控制 ====================
 
