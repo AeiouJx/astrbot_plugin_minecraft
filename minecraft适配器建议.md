@@ -786,3 +786,1326 @@ astrbot_plugin_minecraft/
 你这个需求其实和你之前做的 AstrBot motd/player/seed 那套插件可以很好地结合：Minecraft Adapter 负责“把 Minecraft 变成一个消息平台”，普通 AstrBot 插件负责业务逻辑。 这正是官方 Platform Adapter 设计的用途。
 
 如果你愿意，我下一步可以直接给你写第一版可运行项目：AstrBot WebSocket 适配器 + Paper Java 插件，从 metadata.yaml、main.py、platform.py、event.py 一直到 Paper 的 plugin.yml 和 Java WebSocket Client，直接可以开始测试。
+
+
+
+可以。下面我直接给你一版能作为第一版原型跑起来的 AstrBot Minecraft WebSocket 适配器。
+
+我重新对照了你给的 AstrBot 文档后，结构会严格按照官方 Platform Adapter 的生命周期来做：注册 Platform → run() 启动 WebSocket → 将 Minecraft JSON 转成 AstrBotMessage → commit_event() → 自定义 AstrMessageEvent.send() 把回复发回 Minecraft。官方文档也明确把 Minecraft 列为可以通过平台适配器接入的场景。
+
+另外，现在 AstrBot 本身已经依赖 websockets，但插件仍建议声明自己的 requirements.txt，这是官方插件开发文档目前推荐的依赖管理方式。
+
+1. 项目结构
+
+先做成这个：
+
+astrbot_plugin_minecraft/
+│
+├── metadata.yaml
+├── requirements.txt
+├── main.py
+│
+├── adapter.py
+├── event.py
+├── websocket_server.py
+└── protocol.py
+
+这一版先不搞复杂功能，只实现：
+
+Minecraft → AstrBot 聊天
+AstrBot → Minecraft 回复
+多服务器
+Token 鉴权
+WebSocket 心跳
+玩家 UUID
+玩家名
+Session 隔离
+/say
+广播
+服务器连接/断开
+
+后面再加玩家事件、执行命令、MOTD、在线玩家等。
+
+2. metadata.yaml
+name: astrbot_plugin_minecraft
+display_name: Minecraft WebSocket
+desc: Minecraft WebSocket 平台适配器，让 Minecraft 服务器可以直接接入 AstrBot。
+version: 0.1.0
+author: AeiouJx
+repo: https://github.com/AeiouJx/astrbot_plugin_minecraft
+
+astrbot_version: ">=4.20"
+
+tags:
+  - Minecraft
+  - WebSocket
+  - Adapter
+
+support_platforms:
+  - minecraft
+
+这里的 metadata.yaml 是必须的；AstrBot 当前插件文档也要求插件通过它声明元数据。
+
+如果你暂时没有 GitHub 仓库，开发阶段可以先随便填一个，后面发布再改。
+
+3. requirements.txt
+websockets>=15.0.1
+
+AstrBot 当前版本自身已经依赖 websockets，但插件最好仍然声明依赖，避免不同安装环境缺库。
+
+4. protocol.py
+
+这个文件负责定义 Minecraft ↔ AstrBot 的协议。
+
+from __future__ import annotations
+
+from typing import Any
+
+
+PROTOCOL_VERSION = 1
+
+
+def make_hello(
+    server_id: str,
+    server_name: str,
+    minecraft_version: str,
+    platform: str,
+) -> dict[str, Any]:
+    return {
+        "type": "hello",
+        "protocol": PROTOCOL_VERSION,
+        "server_id": server_id,
+        "server_name": server_name,
+        "minecraft_version": minecraft_version,
+        "platform": platform,
+    }
+
+
+def make_send_message(
+    message: str,
+    player_uuid: str | None = None,
+) -> dict[str, Any]:
+    data: dict[str, Any] = {
+        "type": "send_message",
+        "message": message,
+    }
+
+    if player_uuid:
+        data["player_uuid"] = player_uuid
+
+    return data
+
+
+def make_broadcast(message: str) -> dict[str, Any]:
+    return {
+        "type": "broadcast",
+        "message": message,
+    }
+
+
+def make_command(command: str) -> dict[str, Any]:
+    return {
+        "type": "command",
+        "command": command,
+    }
+
+
+def make_ping() -> dict[str, Any]:
+    return {
+        "type": "ping",
+    }
+
+
+def make_pong() -> dict[str, Any]:
+    return {
+        "type": "pong",
+    }
+5. websocket_server.py
+
+这里是整个适配器最重要的部分。
+
+from __future__ import annotations
+
+import asyncio
+import json
+from typing import Any, Awaitable, Callable
+
+import websockets
+from websockets.asyncio.server import Server, ServerConnection
+
+from astrbot import logger
+
+
+MessageCallback = Callable[
+    [dict[str, Any], "MinecraftConnection"],
+    Awaitable[None],
+]
+
+
+class MinecraftConnection:
+
+    def __init__(
+        self,
+        websocket: ServerConnection,
+        server_id: str,
+        server_name: str,
+        minecraft_version: str,
+        platform: str,
+    ):
+        self.websocket = websocket
+
+        self.server_id = server_id
+        self.server_name = server_name
+        self.minecraft_version = minecraft_version
+        self.platform = platform
+
+        self.connected = True
+
+        self.send_lock = asyncio.Lock()
+
+    async def send(self, data: dict[str, Any]):
+
+        if not self.connected:
+            return
+
+        raw = json.dumps(
+            data,
+            ensure_ascii=False,
+        )
+
+        async with self.send_lock:
+            await self.websocket.send(raw)
+
+    async def close(self):
+
+        self.connected = False
+
+        try:
+            await self.websocket.close()
+        except Exception:
+            pass
+
+
+class MinecraftWebSocketServer:
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        token: str,
+        on_message: MessageCallback,
+    ):
+        self.host = host
+        self.port = port
+        self.token = token
+        self.on_message = on_message
+
+        self.server: Server | None = None
+
+        self.connections: dict[
+            str,
+            MinecraftConnection,
+        ] = {}
+
+    async def start(self):
+
+        self.server = await websockets.serve(
+            self._handler,
+            self.host,
+            self.port,
+            ping_interval=20,
+            ping_timeout=20,
+            max_size=1024 * 1024,
+        )
+
+        logger.info(
+            f"[Minecraft] WebSocket 服务已启动: "
+            f"{self.host}:{self.port}"
+        )
+
+    async def stop(self):
+
+        for connection in list(
+            self.connections.values()
+        ):
+            await connection.close()
+
+        self.connections.clear()
+
+        if self.server:
+            self.server.close()
+            await self.server.wait_closed()
+
+        self.server = None
+
+    async def _handler(
+        self,
+        websocket: ServerConnection,
+    ):
+
+        connection: MinecraftConnection | None = None
+
+        try:
+
+            # 第一条消息必须是 hello
+            raw = await asyncio.wait_for(
+                websocket.recv(),
+                timeout=10,
+            )
+
+            if not isinstance(raw, str):
+                await websocket.close(
+                    code=1008,
+                    reason="Invalid hello",
+                )
+                return
+
+            try:
+                hello = json.loads(raw)
+            except json.JSONDecodeError:
+                await websocket.close(
+                    code=1008,
+                    reason="Invalid JSON",
+                )
+                return
+
+            if hello.get("type") != "hello":
+
+                await websocket.close(
+                    code=1008,
+                    reason="First message must be hello",
+                )
+
+                return
+
+            # Token 验证
+            if self.token:
+
+                client_token = hello.get(
+                    "token",
+                    "",
+                )
+
+                if client_token != self.token:
+
+                    logger.warning(
+                        "[Minecraft] WebSocket Token 错误"
+                    )
+
+                    await websocket.close(
+                        code=1008,
+                        reason="Unauthorized",
+                    )
+
+                    return
+
+            server_id = str(
+                hello.get("server_id", "")
+            )
+
+            if not server_id:
+
+                await websocket.close(
+                    code=1008,
+                    reason="Missing server_id",
+                )
+
+                return
+
+            connection = MinecraftConnection(
+                websocket=websocket,
+                server_id=server_id,
+                server_name=str(
+                    hello.get(
+                        "server_name",
+                        server_id,
+                    )
+                ),
+                minecraft_version=str(
+                    hello.get(
+                        "minecraft_version",
+                        "unknown",
+                    )
+                ),
+                platform=str(
+                    hello.get(
+                        "platform",
+                        "unknown",
+                    )
+                ),
+            )
+
+            # 踢掉旧连接
+            old = self.connections.get(server_id)
+
+            if old:
+                logger.warning(
+                    f"[Minecraft] "
+                    f"服务器 {server_id} 已存在连接，关闭旧连接"
+                )
+
+                await old.close()
+
+            self.connections[server_id] = connection
+
+            logger.info(
+                f"[Minecraft] "
+                f"服务器已连接: {server_id} "
+                f"({connection.server_name})"
+            )
+
+            await connection.send(
+                {
+                    "type": "hello_ack",
+                    "protocol": 1,
+                    "server_id": server_id,
+                }
+            )
+
+            # 接收后续消息
+            async for raw in websocket:
+
+                if not isinstance(raw, str):
+                    continue
+
+                try:
+                    data = json.loads(raw)
+
+                except json.JSONDecodeError:
+
+                    logger.warning(
+                        f"[Minecraft] "
+                        f"收到非法 JSON: {raw[:200]}"
+                    )
+
+                    continue
+
+                await self.on_message(
+                    data,
+                    connection,
+                )
+
+        except asyncio.TimeoutError:
+
+            logger.warning(
+                "[Minecraft] "
+                "连接建立超时"
+            )
+
+        except websockets.ConnectionClosed:
+            pass
+
+        except Exception as e:
+
+            logger.exception(
+                f"[Minecraft] WebSocket 异常: {e}"
+            )
+
+        finally:
+
+            if connection:
+
+                connection.connected = False
+
+                if (
+                    self.connections.get(
+                        connection.server_id
+                    )
+                    is connection
+                ):
+                    del self.connections[
+                        connection.server_id
+                    ]
+
+                logger.info(
+                    f"[Minecraft] "
+                    f"服务器断开: "
+                    f"{connection.server_id}"
+                )
+
+    def get_connection(
+        self,
+        server_id: str,
+    ) -> MinecraftConnection | None:
+
+        return self.connections.get(
+            server_id
+        )
+6. event.py
+
+这个就是 AstrBot 回复 Minecraft 的关键。
+
+from __future__ import annotations
+
+from astrbot.api.event import (
+    AstrMessageEvent,
+    MessageChain,
+)
+
+from astrbot.api.message_components import Plain
+
+from astrbot.api.platform import (
+    AstrBotMessage,
+    PlatformMetadata,
+)
+
+from .websocket_server import (
+    MinecraftConnection,
+)
+
+
+class MinecraftPlatformEvent(
+    AstrMessageEvent
+):
+
+    def __init__(
+        self,
+        message_str: str,
+        message_obj: AstrBotMessage,
+        platform_meta: PlatformMetadata,
+        session_id: str,
+        client: MinecraftConnection,
+    ):
+
+        super().__init__(
+            message_str,
+            message_obj,
+            platform_meta,
+            session_id,
+        )
+
+        self.client = client
+
+    async def send(
+        self,
+        message: MessageChain,
+    ):
+
+        raw_message = (
+            self.message_obj.raw_message
+        )
+
+        player_uuid = (
+            raw_message
+            .get("player", {})
+            .get("uuid")
+        )
+
+        for component in message.chain:
+
+            if isinstance(component, Plain):
+
+                await self.client.send(
+                    {
+                        "type": "send_message",
+                        "player_uuid": player_uuid,
+                        "message": component.text,
+                    }
+                )
+
+        await super().send(message)
+
+这里基本就是官方示例的 Minecraft 版本。官方要求自定义 AstrMessageEvent.send() 处理消息链，并在最后调用父类 send()。
+
+7. adapter.py
+
+这是核心适配器。
+
+from __future__ import annotations
+
+import asyncio
+from typing import Any
+
+from astrbot import logger
+
+from astrbot.api.event import MessageChain
+
+from astrbot.api.message_components import Plain
+
+from astrbot.api.platform import (
+    Platform,
+    AstrBotMessage,
+    MessageMember,
+    MessageType,
+    PlatformMetadata,
+    register_platform_adapter,
+)
+
+from astrbot.core.platform.astr_message_event import (
+    MessageSesion,
+)
+
+from .event import MinecraftPlatformEvent
+from .websocket_server import (
+    MinecraftConnection,
+    MinecraftWebSocketServer,
+)
+
+
+@register_platform_adapter(
+    "minecraft",
+    "Minecraft WebSocket",
+    default_config_tmpl={
+        "host": "0.0.0.0",
+        "port": 6190,
+        "token": "",
+    },
+)
+class MinecraftPlatformAdapter(
+    Platform
+):
+
+    def __init__(
+        self,
+        platform_config: dict,
+        platform_settings: dict,
+        event_queue: asyncio.Queue,
+    ):
+
+        super().__init__(event_queue)
+
+        self.config = platform_config
+        self.settings = platform_settings
+
+        self.client: (
+            MinecraftWebSocketServer
+            | None
+        ) = None
+
+    def meta(
+        self,
+    ) -> PlatformMetadata:
+
+        return PlatformMetadata(
+            "minecraft",
+            "Minecraft WebSocket",
+        )
+
+    async def run(self):
+
+        host = self.config.get(
+            "host",
+            "0.0.0.0",
+        )
+
+        port = int(
+            self.config.get(
+                "port",
+                6190,
+            )
+        )
+
+        token = self.config.get(
+            "token",
+            "",
+        )
+
+        self.client = (
+            MinecraftWebSocketServer(
+                host=host,
+                port=port,
+                token=token,
+                on_message=self.on_message,
+            )
+        )
+
+        await self.client.start()
+
+        # 保持 Platform 运行
+        try:
+
+            while True:
+                await asyncio.sleep(3600)
+
+        except asyncio.CancelledError:
+
+            logger.info(
+                "[Minecraft] "
+                "适配器正在关闭"
+            )
+
+            await self.client.stop()
+
+            raise
+
+    async def send_by_session(
+        self,
+        session: MessageSesion,
+        message_chain: MessageChain,
+    ):
+
+        await super().send_by_session(
+            session,
+            message_chain,
+        )
+
+    async def on_message(
+        self,
+        data: dict[str, Any],
+        connection: MinecraftConnection,
+    ):
+
+        message_type = data.get(
+            "type"
+        )
+
+        # 心跳
+        if message_type == "ping":
+
+            await connection.send(
+                {
+                    "type": "pong"
+                }
+            )
+
+            return
+
+        # Minecraft 主动广播服务器事件
+        if message_type == "server_status":
+
+            logger.info(
+                f"[Minecraft] "
+                f"{connection.server_id}: "
+                f"{data}"
+            )
+
+            return
+
+        # 玩家聊天
+        if message_type == "message":
+
+            try:
+
+                message = (
+                    await self.convert_message(
+                        data,
+                        connection,
+                    )
+                )
+
+                await self.handle_msg(
+                    message,
+                    connection,
+                )
+
+            except Exception as e:
+
+                logger.exception(
+                    f"[Minecraft] "
+                    f"处理消息失败: {e}"
+                )
+
+            return
+
+        logger.debug(
+            f"[Minecraft] "
+            f"未知消息类型: {message_type}"
+        )
+
+    async def convert_message(
+        self,
+        data: dict[str, Any],
+        connection: MinecraftConnection,
+    ) -> AstrBotMessage:
+
+        player = data.get(
+            "player",
+            {},
+        )
+
+        player_uuid = str(
+            player.get(
+                "uuid",
+                "unknown",
+            )
+        )
+
+        player_name = str(
+            player.get(
+                "name",
+                player_uuid,
+            )
+        )
+
+        content = str(
+            data.get(
+                "message",
+                "",
+            )
+        )
+
+        message_id = str(
+            data.get(
+                "message_id",
+                "",
+            )
+        )
+
+        # 服务器作为 group
+        group_id = (
+            f"minecraft:"
+            f"{connection.server_id}"
+        )
+
+        # 每个服务器 + 玩家一个会话
+        session_id = (
+            f"minecraft:"
+            f"{connection.server_id}:"
+            f"{player_uuid}"
+        )
+
+        abm = AstrBotMessage()
+
+        abm.type = (
+            MessageType.GROUP_MESSAGE
+        )
+
+        abm.group_id = group_id
+
+        abm.message_str = content
+
+        abm.sender = MessageMember(
+            user_id=player_uuid,
+            nickname=player_name,
+        )
+
+        abm.message = [
+            Plain(
+                text=content
+            )
+        ]
+
+        # 保留 Minecraft 原始数据
+        abm.raw_message = data
+
+        # Minecraft Bot ID
+        abm.self_id = (
+            f"minecraft:"
+            f"{connection.server_id}"
+        )
+
+        abm.session_id = session_id
+
+        abm.message_id = message_id
+
+        return abm
+
+    async def handle_msg(
+        self,
+        message: AstrBotMessage,
+        connection: MinecraftConnection,
+    ):
+
+        event = MinecraftPlatformEvent(
+            message_str=message.message_str,
+            message_obj=message,
+            platform_meta=self.meta(),
+            session_id=message.session_id,
+            client=connection,
+        )
+
+        # 最关键的一步
+        self.commit_event(event)
+
+这里对应官方文档的核心逻辑：
+
+Minecraft JSON
+      ↓
+convert_message()
+      ↓
+AstrBotMessage
+      ↓
+MinecraftPlatformEvent
+      ↓
+commit_event()
+      ↓
+AstrBot
+
+这正是官方平台适配器的事件进入方式。
+
+8. main.py
+
+非常简单。
+
+from astrbot.api.star import Context, Star
+
+
+class MinecraftPlugin(Star):
+
+    def __init__(
+        self,
+        context: Context,
+    ):
+
+        super().__init__(context)
+
+        # 导入后触发
+        # @register_platform_adapter
+        # 完成平台注册
+
+        from .adapter import (
+            MinecraftPlatformAdapter,
+        )
+
+        self.adapter = (
+            MinecraftPlatformAdapter
+        )
+
+这里有一个小细节：
+
+不要手动实例化 Adapter。
+
+真正的注册动作是：
+
+from .adapter import MinecraftPlatformAdapter
+
+因为：
+
+@register_platform_adapter(...)
+
+会在 import 时注册适配器。
+
+官方文档最后也是这么做的。
+
+所以实际上可以写得更干净：
+
+from astrbot.api.star import Context, Star
+
+
+class MinecraftPlugin(Star):
+
+    def __init__(
+        self,
+        context: Context,
+    ):
+
+        super().__init__(context)
+
+        from . import adapter
+
+我更推荐这个版本。
+
+9. 最终目录
+
+所以最后：
+
+astrbot_plugin_minecraft/
+│
+├── metadata.yaml
+├── requirements.txt
+│
+├── main.py
+├── adapter.py
+├── event.py
+├── websocket_server.py
+└── protocol.py
+10. Minecraft → AstrBot 的协议
+
+Minecraft 插件连接之后，第一条消息必须是：
+
+{
+  "type": "hello",
+  "protocol": 1,
+  "token": "minecraft-secret",
+  "server_id": "survival-01",
+  "server_name": "生存服务器",
+  "minecraft_version": "1.21.8",
+  "platform": "paper"
+}
+
+AstrBot 返回：
+
+{
+  "type": "hello_ack",
+  "protocol": 1,
+  "server_id": "survival-01"
+}
+11. 玩家聊天
+
+比如：
+
+AeiouJx: 你好
+
+Minecraft 插件发送：
+
+{
+  "type": "message",
+  "server_id": "survival-01",
+  "message_id": "123456",
+  "player": {
+    "uuid": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "AeiouJx"
+  },
+  "message": "你好"
+}
+
+然后 AstrBot 内部会变成：
+
+Platform:
+    minecraft
+
+Type:
+    GROUP_MESSAGE
+
+Group:
+    minecraft:survival-01
+
+Sender:
+    AeiouJx
+
+User ID:
+    550e8400-e29b-41d4-a716-446655440000
+
+Session:
+    minecraft:survival-01:550e8400-e29b-41d4-a716-446655440000
+
+Message:
+    你好
+
+这套设计的好处就是：
+
+survival-01:AeiouJx
+survival-02:AeiouJx
+
+是两个完全不同的 AstrBot 会话。
+
+12. AstrBot 回复
+
+假设 AI 回复：
+
+你好 AeiouJx！
+
+最终 Minecraft WebSocket 收到：
+
+{
+  "type": "send_message",
+  "player_uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "message": "你好 AeiouJx！"
+}
+
+Paper 插件收到以后：
+
+player.sendMessage(message);
+
+就可以了。
+
+13. Minecraft 插件这一边
+
+这里我先给你一个非常小的 Paper 客户端设计，不要一上来搞几十个类。
+
+结构：
+
+Minecraft Plugin
+│
+├── MinecraftBotPlugin.java
+│
+├── websocket/
+│   └── AstrBotClient.java
+│
+└── listener/
+    └── ChatListener.java
+
+但是 Java WebSocket 我建议用：
+
+Java-WebSocket
+
+而不是自己手撸 WebSocket 协议。
+
+14. plugin.yml
+name: AstrBotMinecraft
+version: 0.1.0
+main: com.aeioujx.astrbot.MinecraftBotPlugin
+api-version: '1.21'
+
+author: AeiouJx
+
+description: AstrBot Minecraft WebSocket Client
+15. Java 客户端核心逻辑
+
+例如：
+
+public class AstrBotClient extends WebSocketClient {
+
+    private final String serverId;
+    private final String token;
+
+    public AstrBotClient(
+            URI serverUri,
+            String serverId,
+            String token
+    ) {
+        super(serverUri);
+
+        this.serverId = serverId;
+        this.token = token;
+    }
+
+    @Override
+    public void onOpen(ServerHandshake handshake) {
+
+        JSONObject hello = new JSONObject();
+
+        hello.put("type", "hello");
+        hello.put("protocol", 1);
+        hello.put("token", token);
+
+        hello.put(
+            "server_id",
+            serverId
+        );
+
+        hello.put(
+            "server_name",
+            "生存服务器"
+        );
+
+        hello.put(
+            "minecraft_version",
+            "1.21.8"
+        );
+
+        hello.put(
+            "platform",
+            "paper"
+        );
+
+        send(
+            hello.toString()
+        );
+    }
+
+    @Override
+    public void onMessage(String message) {
+
+        JSONObject data =
+            new JSONObject(message);
+
+        String type =
+            data.getString("type");
+
+        if (type.equals(
+                "send_message"
+        )) {
+
+            String text =
+                data.getString(
+                    "message"
+                );
+
+            String uuid =
+                data.optString(
+                    "player_uuid",
+                    ""
+                );
+
+            // 交给 Bukkit 主线程
+            Bukkit.getScheduler()
+                .runTask(
+                    plugin,
+                    () -> {
+
+                        Player player =
+                            Bukkit.getPlayer(
+                                UUID.fromString(
+                                    uuid
+                                )
+                            );
+
+                        if (player != null) {
+                            player.sendMessage(
+                                text
+                            );
+                        }
+                    }
+                );
+        }
+    }
+}
+16. 聊天监听
+
+然后：
+
+@EventHandler
+public void onChat(
+        AsyncChatEvent event
+) {
+
+    Player player =
+        event.getPlayer();
+
+    String message =
+        PlainTextComponentSerializer
+            .plainText()
+            .serialize(
+                event.message()
+            );
+
+    JSONObject data =
+        new JSONObject();
+
+    data.put(
+        "type",
+        "message"
+    );
+
+    data.put(
+        "message_id",
+        UUID.randomUUID()
+            .toString()
+    );
+
+    JSONObject playerData =
+        new JSONObject();
+
+    playerData.put(
+        "uuid",
+        player.getUniqueId()
+            .toString()
+    );
+
+    playerData.put(
+        "name",
+        player.getName()
+    );
+
+    data.put(
+        "player",
+        playerData
+    );
+
+    data.put(
+        "message",
+        message
+    );
+
+    client.send(
+        data.toString()
+    );
+}
+
+这样整个链路就通了：
+
+┌───────────────┐
+│ Minecraft     │
+│               │
+│ AeiouJx: 你好 │
+└───────┬───────┘
+        │
+        │ WebSocket
+        ▼
+┌────────────────────┐
+│ AstrBot Adapter    │
+│                    │
+│ convert_message()  │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│ AstrBot Event      │
+│                    │
+│ LLM / Plugin       │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│ MinecraftEvent     │
+│                    │
+│ event.send()       │
+└─────────┬──────────┘
+          │
+          │ WebSocket
+          ▼
+┌───────────────┐
+│ Minecraft     │
+│               │
+│ AI: 你好！    │
+└───────────────┘
+17. 这一版有一个地方我建议马上改
+
+上面是为了让你看懂架构，所以先写得比较直接。
+
+真正进入第二版的时候，我建议把：
+
+MinecraftPlatformAdapter
+
+和：
+
+MinecraftWebSocketServer
+
+彻底分离。
+
+变成：
+
+                    ┌─────────────────────┐
+                    │ MinecraftPlatform   │
+                    │ Adapter             │
+                    └──────────┬──────────┘
+                               │
+                         Event / API
+                               │
+                    ┌──────────▼──────────┐
+                    │ ConnectionManager   │
+                    └──────────┬──────────┘
+                               │
+                  ┌────────────┼────────────┐
+                  │            │            │
+                  ▼            ▼            ▼
+               Server A     Server B     Server C
+
+这样以后我们就能很容易实现：
+
+/mc server
+/mc players
+/mc say
+/mc exec
+/mc kick
+/mc ban
+
+甚至让 AstrBot Agent 获得：
+
+minecraft_get_server_status
+minecraft_get_players
+minecraft_send_message
+minecraft_execute_command
+minecraft_kick_player
+minecraft_broadcast
+
+这些 Tool。
+
+18. 我建议下一步直接做 Paper 插件完整代码
+
+目前这版已经把 AstrBot Adapter 的骨架定下来了。
+
+接下来最值得做的是我直接把 Minecraft 端补完整，包括：
+
+Paper 1.21.x
+    │
+    ├── WebSocket 自动重连
+    ├── 心跳
+    ├── Token
+    ├── config.yml
+    ├── 聊天监听
+    ├── 玩家加入/退出
+    ├── AI 回复
+    ├── 广播
+    └── /astrbot status
+
+然后我们可以直接在本地：
+
+Minecraft Paper
+      ↓
+ws://127.0.0.1:6190
+      ↓
+AstrBot
+
+跑通第一条：
+
+AeiouJx: 你好
+       ↓
+AstrBot
+       ↓
+AI
+       ↓
+AeiouJx: 你好，我是 AstrBot！
+
+这会比现在继续堆 AstrBot Python 代码更有意义，因为Adapter 的核心已经确定，下一步就是把另一端真正接起来。

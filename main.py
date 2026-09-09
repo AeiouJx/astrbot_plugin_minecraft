@@ -78,6 +78,34 @@ class MinecraftPlugin(Star):
             push = self.config.get("push_visual", True)
         elif etype in (protocol.EVENT_QUEUE_POSITION, protocol.EVENT_QUEUE_COMPLETE):
             push = self.config.get("push_queue", True)
+        elif etype in (protocol.EVENT_QUEUE_START, protocol.EVENT_QUEUE_SKIP, protocol.EVENT_QUEUE_WARNING):
+            push = self.config.get("push_queue_start", True)
+        elif etype == protocol.EVENT_DISCONNECT:
+            push = self.config.get("push_disconnect", True)
+        elif etype in (protocol.EVENT_CLIENT_CONNECTING, protocol.EVENT_CLIENT_CONNECTED,
+                       protocol.EVENT_CLIENT_LOGIN_FAILED, protocol.EVENT_CLIENT_RECONFIGURING,
+                       protocol.EVENT_SESSION_TIME_LIMIT_WARNING, protocol.EVENT_AUTO_RECONNECT):
+            push = self.config.get("push_connection", True)
+        elif etype in (protocol.EVENT_AUTO_EAT_OUT_OF_FOOD, protocol.EVENT_BOT_DEATH_MESSAGE,
+                       protocol.EVENT_SERVER_RESTARTING, protocol.EVENT_PRIO_STATUS,
+                       protocol.EVENT_UPDATE_AVAILABLE, protocol.EVENT_UPDATE_START,
+                       protocol.EVENT_TASKS_COMMAND):
+            push = self.config.get("push_status_events", True)
+        elif etype in (protocol.EVENT_SPAWN_PATROL_TARGET, protocol.EVENT_SPAWN_PATROL_TARGET_KILLED):
+            push = self.config.get("push_patrol", True)
+        elif etype == protocol.EVENT_MSA_DEVICE_CODE:
+            push = self.config.get("push_login", True)
+        elif etype in (protocol.EVENT_REPLAY_STARTED, protocol.EVENT_REPLAY_STOPPED):
+            push = self.config.get("push_replay", False)
+        elif etype in (protocol.EVENT_CLIENT_PLAYER_CONNECTED, protocol.EVENT_CLIENT_PLAYER_DISCONNECTED,
+                       protocol.EVENT_SPECTATOR_CONNECTED, protocol.EVENT_SPECTATOR_DISCONNECTED):
+            push = self.config.get("push_proxy", False)
+        elif etype == protocol.EVENT_ACTIVE_HOURS_CONNECT:
+            push = self.config.get("push_connection", True)
+        elif etype == protocol.EVENT_PLUGIN_LOAD_FAILURE:
+            push = self.config.get("push_status_events", True)
+        elif etype == protocol.EVENT_PLUGIN_LOADED:
+            push = self.config.get("push_status_events", True)
         elif etype in (protocol.EVENT_HEALTH_WARNING, protocol.EVENT_HEALTH_AUTODISCONNECT):
             push = self.config.get("push_health", True)
         elif etype == protocol.EVENT_SCAN_FOUND:
@@ -122,6 +150,35 @@ class MinecraftPlugin(Star):
             protocol.EVENT_CONNECTION_DENIED: "denied",
             protocol.EVENT_QUEUE_POSITION: "queue",
             protocol.EVENT_QUEUE_COMPLETE: "queue",
+            protocol.EVENT_QUEUE_START: "queue",
+            protocol.EVENT_QUEUE_SKIP: "queue",
+            protocol.EVENT_QUEUE_WARNING: "queue",
+            protocol.EVENT_DISCONNECT: "disconnect",
+            protocol.EVENT_CLIENT_CONNECTING: "connect",
+            protocol.EVENT_CLIENT_CONNECTED: "connect",
+            protocol.EVENT_CLIENT_LOGIN_FAILED: "connect",
+            protocol.EVENT_CLIENT_RECONFIGURING: "connect",
+            protocol.EVENT_SESSION_TIME_LIMIT_WARNING: "session",
+            protocol.EVENT_AUTO_RECONNECT: "reconnect",
+            protocol.EVENT_AUTO_EAT_OUT_OF_FOOD: "status",
+            protocol.EVENT_BOT_DEATH_MESSAGE: "death",
+            protocol.EVENT_SERVER_RESTARTING: "restart",
+            protocol.EVENT_PRIO_STATUS: "prio",
+            protocol.EVENT_UPDATE_AVAILABLE: "update",
+            protocol.EVENT_UPDATE_START: "update",
+            protocol.EVENT_REPLAY_STARTED: "replay",
+            protocol.EVENT_REPLAY_STOPPED: "replay",
+            protocol.EVENT_ACTIVE_HOURS_CONNECT: "active",
+            protocol.EVENT_SPAWN_PATROL_TARGET: "patrol",
+            protocol.EVENT_SPAWN_PATROL_TARGET_KILLED: "patrol",
+            protocol.EVENT_MSA_DEVICE_CODE: "login",
+            protocol.EVENT_TASKS_COMMAND: "task",
+            protocol.EVENT_PLUGIN_LOAD_FAILURE: "plugin",
+            protocol.EVENT_PLUGIN_LOADED: "plugin",
+            protocol.EVENT_CLIENT_PLAYER_CONNECTED: "proxy",
+            protocol.EVENT_CLIENT_PLAYER_DISCONNECTED: "proxy",
+            protocol.EVENT_SPECTATOR_CONNECTED: "spectator",
+            protocol.EVENT_SPECTATOR_DISCONNECTED: "spectator",
             protocol.EVENT_HEALTH_WARNING: "health",
             protocol.EVENT_HEALTH_AUTODISCONNECT: "health",
             protocol.EVENT_SCAN_FOUND: "scan",
@@ -142,8 +199,13 @@ class MinecraftPlugin(Star):
         # 安全事件加 ⚠ 前缀
         if etype in (protocol.EVENT_ATTACK, protocol.EVENT_TOTEM_POP,
                      protocol.EVENT_TOTEM_EMPTY, protocol.EVENT_HEALTH_WARNING,
-                     protocol.EVENT_HEALTH_AUTODISCONNECT):
+                     protocol.EVENT_HEALTH_AUTODISCONNECT, protocol.EVENT_QUEUE_START,
+                     protocol.EVENT_QUEUE_WARNING, protocol.EVENT_DISCONNECT,
+                     protocol.EVENT_AUTO_EAT_OUT_OF_FOOD, protocol.EVENT_SERVER_RESTARTING,
+                     protocol.EVENT_SESSION_TIME_LIMIT_WARNING):
             text = f"⚠ {text}"
+        elif etype in (protocol.EVENT_BOT_DEATH_MESSAGE, protocol.EVENT_SPAWN_PATROL_TARGET_KILLED):
+            text = f"💀 {text}"
         elif etype == protocol.EVENT_CONNECTION_DENIED:
             text = f"🚫 {text}"
 
@@ -171,7 +233,10 @@ class MinecraftPlugin(Star):
                          protocol.EVENT_DEATH, protocol.EVENT_ACHIEVEMENT,
                          protocol.EVENT_PLAYER_DEATH, protocol.EVENT_ATTACK,
                          protocol.EVENT_VISUAL_ENTER, protocol.EVENT_VISUAL_LEAVE,
-                         protocol.EVENT_VISUAL_LOGOUT):
+                         protocol.EVENT_VISUAL_LOGOUT,
+                         protocol.EVENT_QUEUE_START, protocol.EVENT_QUEUE_WARNING,
+                         protocol.EVENT_DISCONNECT, protocol.EVENT_BOT_DEATH_MESSAGE,
+                         protocol.EVENT_SPAWN_PATROL_TARGET, protocol.EVENT_SPAWN_PATROL_TARGET_KILLED):
             return
 
         msg = event.message_str
@@ -194,6 +259,23 @@ class MinecraftPlugin(Star):
         elif etype in (protocol.EVENT_VISUAL_ENTER, protocol.EVENT_VISUAL_LEAVE, protocol.EVENT_VISUAL_LOGOUT):
             vtype = etype.replace("visual_", "")
             text = f"{sender_id} {vtype}d view\n[{event.server_id}] [visual] [{ts}]"
+        elif etype == protocol.EVENT_QUEUE_START:
+            text = f"⚠ Started queuing\n[{event.server_id}] [queue] [{ts}]"
+        elif etype == protocol.EVENT_QUEUE_WARNING:
+            pos = (event.message_obj.raw_message or {}).get("position", "?")
+            text = f"⚠ Queue warning: position #{pos}\n[{event.server_id}] [queue] [{ts}]"
+        elif etype == protocol.EVENT_DISCONNECT:
+            reason = (event.message_obj.raw_message or {}).get("reason", "unknown")
+            text = f"⚠ Bot disconnected: {reason}\n[{event.server_id}] [disconnect] [{ts}]"
+        elif etype == protocol.EVENT_BOT_DEATH_MESSAGE:
+            text = f"💀 {msg}\n[{event.server_id}] [death] [{ts}]"
+        elif etype == protocol.EVENT_SPAWN_PATROL_TARGET:
+            x = (event.message_obj.raw_message or {}).get("x", 0)
+            y = (event.message_obj.raw_message or {}).get("y", 0)
+            z = (event.message_obj.raw_message or {}).get("z", 0)
+            text = f"🎯 Patrol target: {sender_id} [{x},{y},{z}]\n[{event.server_id}] [patrol] [{ts}]"
+        elif etype == protocol.EVENT_SPAWN_PATROL_TARGET_KILLED:
+            text = f"💀 Patrol killed: {sender_id}\n[{event.server_id}] [patrol] [{ts}]"
         else:
             text = f"{sender_id}: {msg}\n[{event.server_id}] [chat] [{ts}]"
 
@@ -225,6 +307,14 @@ class MinecraftPlugin(Star):
                 if etype == protocol.EVENT_ATTACK and not tpl.get("push_attack", True):
                     continue
                 if etype in (protocol.EVENT_VISUAL_ENTER, protocol.EVENT_VISUAL_LEAVE, protocol.EVENT_VISUAL_LOGOUT) and not tpl.get("push_visual", False):
+                    continue
+                if etype in (protocol.EVENT_QUEUE_START, protocol.EVENT_QUEUE_WARNING) and not tpl.get("push_queue", True):
+                    continue
+                if etype == protocol.EVENT_DISCONNECT and not tpl.get("push_disconnect", True):
+                    continue
+                if etype == protocol.EVENT_BOT_DEATH_MESSAGE and not tpl.get("push_death", True):
+                    continue
+                if etype in (protocol.EVENT_SPAWN_PATROL_TARGET, protocol.EVENT_SPAWN_PATROL_TARGET_KILLED) and not tpl.get("push_patrol", True):
                     continue
                 if self._match_focus_player(etype, sender_id, msg, tpl_players):
                     target_groups.update(tpl_groups)

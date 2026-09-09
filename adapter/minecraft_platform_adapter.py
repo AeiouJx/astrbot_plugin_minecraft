@@ -265,6 +265,100 @@ class MinecraftPlatformAdapter(Platform):
             x, y, z = payload.get("x", 0), payload.get("y", 0), payload.get("z", 0)
             dist = payload.get("distance", "?")
             return f"Scan found {target}: {name} [{x},{y},{z}] ({dist}m)"
+        elif event_type == protocol.EVENT_QUEUE_START:
+            was_online = payload.get("was_online", False)
+            dur = payload.get("online_duration_seconds", 0)
+            if was_online:
+                return f"Started queuing (was online {dur}s before kick)"
+            return "Started queuing"
+        elif event_type == protocol.EVENT_QUEUE_SKIP:
+            return "Skipped queue, joining directly"
+        elif event_type == protocol.EVENT_QUEUE_WARNING:
+            pos = payload.get("position", "?")
+            return f"Queue warning: position #{pos}"
+        elif event_type == protocol.EVENT_DISCONNECT:
+            reason = payload.get("reason", "unknown")
+            manual = payload.get("manual", False)
+            dur = payload.get("online_duration_seconds", 0)
+            if manual:
+                return f"Bot disconnected manually (online {dur}s)"
+            text = f"Bot disconnected: {reason}"
+            if dur:
+                text += f" (online {dur}s)"
+            return text
+        elif event_type == protocol.EVENT_CLIENT_CONNECTING:
+            return "Connecting..."
+        elif event_type == protocol.EVENT_CLIENT_CONNECTED:
+            return "Connected"
+        elif event_type == protocol.EVENT_CLIENT_LOGIN_FAILED:
+            error = payload.get("error", "unknown")
+            return f"Login failed: {error}"
+        elif event_type == protocol.EVENT_CLIENT_RECONFIGURING:
+            return "Reconfiguring..."
+        elif event_type == protocol.EVENT_SESSION_TIME_LIMIT_WARNING:
+            mins = payload.get("duration_until_kick_minutes", "?")
+            limit = payload.get("session_time_limit_hours", "?")
+            return f"Session time limit: {mins}min until kick (limit {limit}h)"
+        elif event_type == protocol.EVENT_AUTO_RECONNECT:
+            delay = payload.get("delay_seconds", "?")
+            return f"Auto reconnect in {delay}s"
+        elif event_type == protocol.EVENT_AUTO_EAT_OUT_OF_FOOD:
+            return "AutoEat out of food"
+        elif event_type == protocol.EVENT_BOT_DEATH_MESSAGE:
+            return payload.get("message", "Bot died")
+        elif event_type == protocol.EVENT_SERVER_RESTARTING:
+            return payload.get("message", "Server restarting")
+        elif event_type == protocol.EVENT_PRIO_STATUS:
+            prio = payload.get("prio", False)
+            return "Priority queue: gained" if prio else "Priority queue: lost"
+        elif event_type == protocol.EVENT_UPDATE_AVAILABLE:
+            ver = payload.get("version", "?")
+            return f"Update available: {ver}"
+        elif event_type == protocol.EVENT_UPDATE_START:
+            ver = payload.get("version", "")
+            return f"Updating and restarting... ({ver})" if ver else "Updating and restarting..."
+        elif event_type == protocol.EVENT_REPLAY_STARTED:
+            return "Replay recording started"
+        elif event_type == protocol.EVENT_REPLAY_STOPPED:
+            f = payload.get("file", "")
+            return f"Replay recording stopped: {f}" if f else "Replay recording stopped"
+        elif event_type == protocol.EVENT_ACTIVE_HOURS_CONNECT:
+            wait = payload.get("will_wait", False)
+            return "Active hours connect triggered (waiting 1min)" if wait else "Active hours connect triggered"
+        elif event_type == protocol.EVENT_SPAWN_PATROL_TARGET:
+            x, y, z = payload.get("x", 0), payload.get("y", 0), payload.get("z", 0)
+            return f"Patrol target acquired: {player} [{x},{y},{z}]"
+        elif event_type == protocol.EVENT_SPAWN_PATROL_TARGET_KILLED:
+            msg = payload.get("message", "")
+            return f"Patrol target killed: {player} ({msg})"
+        elif event_type == protocol.EVENT_MSA_DEVICE_CODE:
+            url = payload.get("url", "?")
+            code = payload.get("code", "?")
+            return f"Microsoft login: open {url} and enter code {code}"
+        elif event_type == protocol.EVENT_TASKS_COMMAND:
+            cmd = payload.get("command", "?")
+            return f"Scheduled task executed: {cmd}"
+        elif event_type == protocol.EVENT_PLUGIN_LOAD_FAILURE:
+            pid = payload.get("id", "?")
+            msg = payload.get("message", "?")
+            return f"Plugin load failure: {pid} ({msg})"
+        elif event_type == protocol.EVENT_PLUGIN_LOADED:
+            pid = payload.get("id", "?")
+            ver = payload.get("version", "?")
+            return f"Plugin loaded: {pid} v{ver}"
+        elif event_type == protocol.EVENT_CLIENT_PLAYER_CONNECTED:
+            ver = payload.get("mc_version", "")
+            suffix = f" (MC {ver})" if ver else ""
+            return f"Client player {player} connected{suffix}"
+        elif event_type == protocol.EVENT_CLIENT_PLAYER_DISCONNECTED:
+            reason = payload.get("reason", "")
+            return f"Client player {player} disconnected: {reason}" if reason else f"Client player {player} disconnected"
+        elif event_type == protocol.EVENT_SPECTATOR_CONNECTED:
+            ver = payload.get("mc_version", "")
+            suffix = f" (MC {ver})" if ver else ""
+            return f"Spectator {player} connected{suffix}"
+        elif event_type == protocol.EVENT_SPECTATOR_DISCONNECTED:
+            return f"Spectator {player} disconnected"
         elif event_type == protocol.EVENT_SYSTEM:
             return payload.get("message", "")
         elif event_type == protocol.EVENT_BOT_STATUS:

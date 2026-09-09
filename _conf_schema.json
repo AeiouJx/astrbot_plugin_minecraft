@@ -95,6 +95,54 @@
         "hint": "扫描发现目标方块/实体事件推送到 QQ 群。",
         "default": true
     },
+    "push_queue_start": {
+        "description": "推送排队开始/跳过/警告",
+        "type": "bool",
+        "hint": "排队开始、跳过排队、队位警告事件推送到 QQ 群。",
+        "default": true
+    },
+    "push_disconnect": {
+        "description": "推送 Bot 断开连接",
+        "type": "bool",
+        "hint": "Bot 断开连接事件推送到 QQ 群。",
+        "default": true
+    },
+    "push_connection": {
+        "description": "推送连接状态事件",
+        "type": "bool",
+        "hint": "正在连接、已连接、登录失败、重新配置、会话时长限制、自动重连、活跃时段等事件推送到 QQ 群。",
+        "default": true
+    },
+    "push_status_events": {
+        "description": "推送状态/系统事件",
+        "type": "bool",
+        "hint": "无食物、Bot死亡文本、服务器重启、优先队列、版本更新、定时任务、插件加载等事件推送到 QQ 群。",
+        "default": true
+    },
+    "push_patrol": {
+        "description": "推送巡逻事件",
+        "type": "bool",
+        "hint": "出生点巡逻发现/击杀目标事件推送到 QQ 群。",
+        "default": true
+    },
+    "push_login": {
+        "description": "推送微软登录事件",
+        "type": "bool",
+        "hint": "微软设备码登录事件推送到 QQ 群。",
+        "default": true
+    },
+    "push_replay": {
+        "description": "推送录像事件",
+        "type": "bool",
+        "hint": "录像开始/结束事件推送到 QQ 群。",
+        "default": false
+    },
+    "push_proxy": {
+        "description": "推送代理控制连接事件",
+        "type": "bool",
+        "hint": "控制玩家/观察者连接/断开代理事件推送到 QQ 群。",
+        "default": false
+    },
     "moderation": {
         "description": "内容审核",
         "type": "object",
@@ -264,6 +312,24 @@
                         "type": "bool",
                         "hint": "推送该玩家的私聊消息",
                         "default": false
+                    },
+                    "push_queue": {
+                        "description": "推送排队事件",
+                        "type": "bool",
+                        "hint": "推送该玩家相关的排队开始/警告事件",
+                        "default": true
+                    },
+                    "push_disconnect": {
+                        "description": "推送断开连接",
+                        "type": "bool",
+                        "hint": "推送Bot断开连接事件",
+                        "default": true
+                    },
+                    "push_patrol": {
+                        "description": "推送巡逻事件",
+                        "type": "bool",
+                        "hint": "推送该玩家的巡逻发现/击杀事件",
+                        "default": true
                     }
                 }
             }
