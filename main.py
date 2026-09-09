@@ -87,7 +87,7 @@ class MinecraftPlugin(Star):
                 logger.debug(f"[MC→QQ] AI 拦截: {reason} | {msg}")
                 return
 
-        # 格式化消息：sender: message\n[server] [HH:MM:SS]
+        # 格式化消息：sender: message\n[server] [event_type] [HH:MM:SS]
         sender_id = event.message_obj.sender.user_id
         etype_label = {
             protocol.EVENT_CHAT: "chat",
@@ -100,9 +100,9 @@ class MinecraftPlugin(Star):
             protocol.EVENT_BOT_STATUS: "status",
         }.get(etype, etype)
         if sender_id != "system":
-            text = f"[{etype_label}] {event.message_obj.sender.nickname}: {msg}\n[{event.server_id}] [{time.strftime('%H:%M:%S')}]"
+            text = f"{event.message_obj.sender.nickname}: {msg}\n[{event.server_id}] [{etype_label}] [{time.strftime('%H:%M:%S')}]"
         else:
-            text = f"[{etype_label}] {msg}\n[{event.server_id}] [{time.strftime('%H:%M:%S')}]"
+            text = f"{msg}\n[{event.server_id}] [{etype_label}] [{time.strftime('%H:%M:%S')}]"
 
         session = f"{self._qq_platform_id}:GroupMessage:{qq_group}"
         chain = MessageChain()
@@ -116,16 +116,8 @@ class MinecraftPlugin(Star):
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=999)
     async def on_focus_player_event(self, event: AstrMessageEvent) -> None:
-        """重点关注玩家事件推送到独立群。"""
+        """重点关注玩家事件推送到指定群。"""
         if event.get_platform_id() != "minecraft":
-            return
-
-        focus_group = self.config.get("focus_group", "")
-        if not focus_group:
-            return
-
-        focus_players = self.config.get("focus_players", [])
-        if not focus_players:
             return
 
         from .adapter import protocol
@@ -133,42 +125,81 @@ class MinecraftPlugin(Star):
         etype = getattr(event, "platform_event_type", "")
         sender_id = event.message_obj.sender.user_id
 
-        # 仅处理关注玩家的聊天、加入、退出、死亡事件
         if etype not in (protocol.EVENT_CHAT, protocol.EVENT_WHISPER,
                          protocol.EVENT_PLAYER_JOIN, protocol.EVENT_PLAYER_LEAVE,
                          protocol.EVENT_DEATH):
             return
-
-        # 聊天/加入/退出：直接匹配 sender_id；死亡：匹配消息中的玩家名
-        if etype == protocol.EVENT_DEATH:
-            if not any(name in event.message_str for name in focus_players):
-                return
-        else:
-            if sender_id not in focus_players:
-                return
 
         msg = event.message_str
         ts = time.strftime('%H:%M:%S')
 
         # 格式化消息
         if etype == protocol.EVENT_PLAYER_JOIN:
-            text = f"[join] {sender_id} joined the game\n[{event.server_id}] [{ts}]"
+            text = f"{sender_id} joined the game\n[{event.server_id}] [join] [{ts}]"
         elif etype == protocol.EVENT_PLAYER_LEAVE:
-            text = f"[leave] {sender_id} left the game\n[{event.server_id}] [{ts}]"
+            text = f"{sender_id} left the game\n[{event.server_id}] [leave] [{ts}]"
         elif etype == protocol.EVENT_DEATH:
-            text = f"[death] {msg}\n[{event.server_id}] [{ts}]"
+            text = f"{msg}\n[{event.server_id}] [death] [{ts}]"
         elif etype == protocol.EVENT_WHISPER:
-            text = f"[whisper] {sender_id}: {msg}\n[{event.server_id}] [{ts}]"
+            text = f"{sender_id}: {msg}\n[{event.server_id}] [whisper] [{ts}]"
         else:
-            text = f"[chat] {sender_id}: {msg}\n[{event.server_id}] [{ts}]"
+            text = f"{sender_id}: {msg}\n[{event.server_id}] [chat] [{ts}]"
 
-        session = f"{self._qq_platform_id}:GroupMessage:{focus_group}"
-        chain = MessageChain()
-        chain.chain.append(Plain(text=text))
+        # 收集所有需要推送的 (group, matched_player) 对
+        targets: list[tuple[str, str]] = []
+
+        # 1. 旧版 focus_players + focus_group
+        focus_group = self.config.get("focus_group", "")
+        focus_players = self.config.get("focus_players", [])
+        if focus_group and focus_players:
+            matched = self._match_focus_player(etype, sender_id, msg, focus_players)
+            if matched:
+                targets.append((focus_group, matched))
+
+        # 2. 新版 focus_templates
+        import json as _json
+        templates_raw = self.config.get("focus_templates", "[]")
         try:
-            await self.context.send_message(session, chain)
-        except Exception as e:
-            logger.warning(f"[MC→QQ] 重点关注推送失败: {e}")
+            templates = _json.loads(templates_raw) if isinstance(templates_raw, str) else templates_raw
+        except (ValueError, TypeError):
+            templates = []
+        for tpl in templates:
+            tpl_group = tpl.get("group", "")
+            tpl_players = tpl.get("players", [])
+            tpl_events = tpl.get("events", [])
+            if not tpl_group or not tpl_players:
+                continue
+            if tpl_events and etype not in tpl_events:
+                continue
+            matched = self._match_focus_player(etype, sender_id, msg, tpl_players)
+            if matched:
+                targets.append((tpl_group, matched))
+
+        # 去重推送
+        sent_groups: set[str] = set()
+        for group, _ in targets:
+            if group in sent_groups:
+                continue
+            sent_groups.add(group)
+            session = f"{self._qq_platform_id}:GroupMessage:{group}"
+            chain = MessageChain()
+            chain.chain.append(Plain(text=text))
+            try:
+                await self.context.send_message(session, chain)
+            except Exception as e:
+                logger.warning(f"[MC→QQ] 重点关注推送失败: {e}")
+
+    @staticmethod
+    def _match_focus_player(etype: str, sender_id: str, msg: str, players: list[str]) -> str:
+        """检查事件是否匹配关注玩家，返回匹配到的玩家名。"""
+        if etype == protocol.EVENT_DEATH:
+            for name in players:
+                if name in msg:
+                    return name
+            return ""
+        if sender_id in players:
+            return sender_id
+        return ""
 
     # ==================== LLM 自动回复控制 ====================
 

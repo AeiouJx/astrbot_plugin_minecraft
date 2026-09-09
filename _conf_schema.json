@@ -136,7 +136,7 @@
     "focus_players": {
         "description": "重点关注玩家列表",
         "type": "list",
-        "hint": "填写 Minecraft 用户名（如 BadApple），这些玩家的聊天/加入/退出事件会推送到下方的重点关注群。留空不启用。",
+        "hint": "填写 Minecraft 用户名（如 BadApple），这些玩家的聊天/加入/退出/死亡事件会推送到下方的重点关注群。留空不启用。",
         "default": []
     },
     "focus_group": {
@@ -144,6 +144,13 @@
         "type": "string",
         "hint": "重点关注玩家的事件推送到此群。留空则不推送。可与上方的事件推送群相同或不同。",
         "default": ""
+    },
+    "focus_templates": {
+        "description": "重点关注模板",
+        "type": "text",
+        "editor_mode": "json",
+        "hint": "JSON 格式，每个条目指定一个群和要关注的玩家列表。示例: [{\"group\":\"1060721638\",\"players\":[\"BadApple\",\"Cat\"],\"events\":[\"chat\",\"join\",\"leave\",\"death\"]}]",
+        "default": "[]"
     },
     "allowed_groups": {
         "description": "允许使用的群号列表",
