@@ -141,9 +141,10 @@ class MinecraftPlugin(Star):
         ts = time.strftime('%H:%M:%S')
 
         # 格式化消息
-        if etype in (protocol.EVENT_PLAYER_JOIN, protocol.EVENT_PLAYER_LEAVE):
-            action = "加入了游戏" if etype == protocol.EVENT_PLAYER_JOIN else "离开了游戏"
-            text = f"玩家 {sender_id} {action}\n[{event.server_id}] [{ts}]"
+        if etype == protocol.EVENT_PLAYER_JOIN:
+            text = f"{sender_id} joined the game\n[{event.server_id}] [{ts}]"
+        elif etype == protocol.EVENT_PLAYER_LEAVE:
+            text = f"{sender_id} left the game\n[{event.server_id}] [{ts}]"
         elif etype == protocol.EVENT_DEATH:
             text = f"{msg}\n[{event.server_id}] [{ts}]"
         elif etype == protocol.EVENT_WHISPER:

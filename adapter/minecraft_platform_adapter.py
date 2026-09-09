@@ -214,17 +214,17 @@ class MinecraftPlatformAdapter(Platform):
     def _format_event(self, event_type: str, payload: dict) -> str:
         player = payload.get("player", "unknown")
         if event_type == protocol.EVENT_PLAYER_JOIN:
-            return f"玩家 {player} 加入了游戏"
+            return f"{player} joined the game"
         elif event_type == protocol.EVENT_PLAYER_LEAVE:
-            return f"玩家 {player} 离开了游戏"
+            return f"{player} left the game"
         elif event_type == protocol.EVENT_DEATH:
-            return payload.get("death_message", "Bot 死亡了")
+            return payload.get("death_message", "Bot died")
         elif event_type == protocol.EVENT_ACHIEVEMENT:
-            return f"玩家 {player} 达成成就: {payload.get('achievement', '')}"
+            return f"{player} has made the advancement [{payload.get('achievement', '')}]"
         elif event_type == protocol.EVENT_SYSTEM:
             return payload.get("message", "")
         elif event_type == protocol.EVENT_BOT_STATUS:
-            return f"[Bot] 状态: {payload.get('status', '')}"
+            return f"[Bot] {payload.get('status', '')}"
         return ""
 
     @staticmethod

@@ -74,7 +74,14 @@
     "llm_moderation_provider": {
         "description": "AI 审核使用的模型",
         "type": "string",
-        "hint": "留空则使用 AstrBot 默认的 LLM Provider。可指定具体 Provider ID（如 zhipu/glm-4.5-air）以使用更便宜的模型。",
+        "hint": "选择用于内容审核的模型。留空则使用 AstrBot 默认模型。",
+        "options": ["", "openai/gpt-4o-mini", "deepseek/deepseek-chat", "zhipu/glm-4.5-air"],
+        "labels": {
+            "": "默认模型",
+            "openai/gpt-4o-mini": "GPT-4o Mini",
+            "deepseek/deepseek-chat": "DeepSeek Chat",
+            "zhipu/glm-4.5-air": "GLM-4.5 Air"
+        },
         "default": ""
     },
     "llm_moderation_prompt": {
@@ -109,6 +116,22 @@
         "type": "bool",
         "hint": "开启后，玩家在 MC 聊天中 @Bot 或私聊 Bot 时，LLM 会自动生成回复。关闭则 Bot 不回复 MC 消息。",
         "default": true
+    },
+    "llm_reply_provider": {
+        "description": "LLM 回复模型",
+        "type": "string",
+        "hint": "选择用于 MC 聊天自动回复的模型。留空使用 AstrBot 默认模型。",
+        "options": ["", "openai/gpt-4o", "openai/gpt-4o-mini", "anthropic/claude-sonnet-4-20250514", "deepseek/deepseek-chat", "zhipu/glm-4.5-air", "moonshot/moonshot-v1-8k"],
+        "labels": {
+            "": "默认模型",
+            "openai/gpt-4o": "GPT-4o",
+            "openai/gpt-4o-mini": "GPT-4o Mini",
+            "anthropic/claude-sonnet-4-20250514": "Claude Sonnet 4",
+            "deepseek/deepseek-chat": "DeepSeek Chat",
+            "zhipu/glm-4.5-air": "GLM-4.5 Air",
+            "moonshot/moonshot-v1-8k": "Moonshot v1 8K"
+        },
+        "default": ""
     },
     "focus_players": {
         "description": "重点关注玩家列表",
