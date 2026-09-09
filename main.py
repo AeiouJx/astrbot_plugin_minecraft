@@ -145,17 +145,9 @@ class MinecraftPlugin(Star):
         else:
             text = f"{sender_id}: {msg}\n[{event.server_id}] [chat] [{ts}]"
 
-        # 收集所有需要推送的 (group) 对
+        # 收集所有需要推送的目标群
         target_groups: set[str] = set()
 
-        # 1. 旧版 focus_players + focus_group
-        focus_group = self.config.get("focus_group", "")
-        focus_players = self.config.get("focus_players", [])
-        if focus_group and focus_players:
-            if self._match_focus_player(etype, sender_id, msg, focus_players):
-                target_groups.add(focus_group)
-
-        # 2. 新版 focus_templates (template_list 格式)
         templates = self.config.get("focus_templates", [])
         if isinstance(templates, list):
             for tpl in templates:

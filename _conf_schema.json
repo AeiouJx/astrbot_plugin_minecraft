@@ -118,25 +118,14 @@
         "hint": "选择用于 MC 聊天自动回复的模型提供商。留空使用 AstrBot 默认模型。",
         "default": ""
     },
-    "focus_players": {
-        "description": "重点关注玩家列表 (旧版)",
-        "type": "list",
-        "hint": "填写 Minecraft 用户名。这些玩家的事件会推送到 focus_group。建议使用下方的模板代替。",
-        "default": []
-    },
-    "focus_group": {
-        "description": "重点关注群号 (旧版)",
-        "type": "string",
-        "hint": "旧版单群配置。建议使用下方的模板代替。",
-        "default": ""
-    },
     "focus_templates": {
-        "description": "重点关注推送模板",
+        "description": "🎯 重点关注推送",
+        "hint": "添加重点关注规则：指定 QQ 群和要关注的 Minecraft 玩家，命中时推送到对应群。",
         "type": "template_list",
         "templates": {
             "focus_entry": {
                 "name": "关注规则",
-                "hint": "添加一条重点关注规则：指定 QQ 群和要关注的 Minecraft 玩家",
+                "hint": "添加一条重点关注规则",
                 "display_item": "group",
                 "items": {
                     "group": {
@@ -148,7 +137,7 @@
                     "players": {
                         "description": "关注玩家列表",
                         "type": "list",
-                        "hint": "填写 Minecraft 用户名，多个用列表形式添加",
+                        "hint": "填写 Minecraft 用户名",
                         "default": []
                     },
                     "push_chat": {
