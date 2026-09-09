@@ -70,13 +70,14 @@ class ContentModerator:
 
     async def ai_check(self, message: str) -> tuple[bool, str]:
         """L3: AI 审核。返回 (是否放行, 拦截原因)。"""
-        if not self.config.get("llm_moderation_enable", False):
+        mod_config = self.config.get("llm_moderation", {})
+        if not mod_config.get("enable", False):
             return True, ""
 
-        prompt = self.config.get("llm_moderation_prompt", "") or _DEFAULT_AI_PROMPT
+        prompt = mod_config.get("prompt", "") or _DEFAULT_AI_PROMPT
         full_prompt = f"{prompt}\n\n{message}"
 
-        provider_id = self.config.get("llm_moderation_provider", "") or None
+        provider_id = mod_config.get("provider", "") or None
 
         try:
             from astrbot.api.provider import ProviderRequest

@@ -252,7 +252,7 @@ class MinecraftPlugin(Star):
     async def on_llm_request(self, event: AstrMessageEvent, req) -> None:
         if event.get_platform_id() != "minecraft":
             return
-        llm_config = self.config.get("llm", {})
+        llm_config = self.config.get("llm_reply", {})
         weight = llm_config.get("weight", 10)
         if weight <= 0:
             event.stop_propagation()

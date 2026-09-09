@@ -113,24 +113,30 @@
         "hint": "开启后会读取 astrbot_plugin_group_guardian 的 lexicon.db 词库（66,000+ 条关键词），扩大过滤覆盖范围。需先安装该插件。",
         "default": false
     },
-    "llm_moderation_enable": {
+    "llm_moderation": {
         "description": "AI 内容审核 (L3)",
-        "type": "bool",
-        "hint": "开启后，推送到 QQ 的消息会先发送给 LLM 判断是否安全，不安全的内容不会推送。会消耗少量 API 额度。",
-        "default": false
-    },
-    "llm_moderation_provider": {
-        "description": "AI 审核模型",
-        "type": "string",
-        "_special": "select_provider",
-        "hint": "选择用于内容审核的模型提供商。留空则使用 AstrBot 默认模型。",
-        "default": ""
-    },
-    "llm_moderation_prompt": {
-        "description": "AI 审核提示词",
-        "type": "string",
-        "hint": "自定义 AI 审核的判断标准。留空使用内置默认提示词。",
-        "default": ""
+        "type": "object",
+        "items": {
+            "enable": {
+                "description": "启用 AI 审核",
+                "type": "bool",
+                "hint": "开启后，推送到 QQ 的消息会先发送给 LLM 判断是否安全，不安全的内容不会推送。会消耗少量 API 额度。",
+                "default": false
+            },
+            "provider": {
+                "description": "AI 审核模型",
+                "type": "string",
+                "_special": "select_provider",
+                "hint": "选择用于内容审核的模型提供商。留空则使用 AstrBot 默认模型。",
+                "default": ""
+            },
+            "prompt": {
+                "description": "AI 审核提示词",
+                "type": "string",
+                "hint": "自定义 AI 审核的判断标准。留空使用内置默认提示词。",
+                "default": ""
+            }
+        }
     },
     "max_message_length": {
         "description": "最大聊天长度",
@@ -153,7 +159,7 @@
         "slider": {"min": 10, "max": 300, "step": 10},
         "default": 60
     },
-    "llm": {
+    "llm_reply": {
         "description": "LLM 回复",
         "type": "object",
         "items": {
