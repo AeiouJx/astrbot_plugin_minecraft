@@ -148,7 +148,7 @@ class MinecraftPlugin(Star):
         # 收集所有需要推送的目标群
         target_groups: set[str] = set()
 
-        templates = self.config.get("focus_templates", [])
+        templates = self.config.get("focus_templates_list", [])
         if isinstance(templates, list):
             for tpl in templates:
                 tpl_group = tpl.get("group", "")
