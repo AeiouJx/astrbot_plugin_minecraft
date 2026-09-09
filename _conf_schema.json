@@ -201,9 +201,9 @@
                     },
                     "group": {
                         "description": "推送目标群号",
-                        "type": "string",
-                        "hint": "该玩家的事件会推送到这个 QQ 群",
-                        "default": ""
+                        "type": "list",
+                        "hint": "该玩家的事件会推送到这些 QQ 群（可填多个）",
+                        "default": []
                     },
                     "push_chat": {
                         "description": "推送聊天",

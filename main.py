@@ -198,9 +198,11 @@ class MinecraftPlugin(Star):
         templates = self.config.get("focus_templates_list", [])
         if isinstance(templates, list):
             for tpl in templates:
-                tpl_group = tpl.get("group", "")
+                tpl_groups = tpl.get("group", [])
+                if isinstance(tpl_groups, str):
+                    tpl_groups = [tpl_groups] if tpl_groups else []
                 tpl_players = tpl.get("players", [])
-                if not tpl_group or not tpl_players:
+                if not tpl_groups or not tpl_players:
                     continue
                 # 检查事件类型开关
                 if etype == protocol.EVENT_CHAT and not tpl.get("push_chat", True):
@@ -220,7 +222,7 @@ class MinecraftPlugin(Star):
                 if etype in (protocol.EVENT_VISUAL_ENTER, protocol.EVENT_VISUAL_LEAVE, protocol.EVENT_VISUAL_LOGOUT) and not tpl.get("push_visual", False):
                     continue
                 if self._match_focus_player(etype, sender_id, msg, tpl_players):
-                    target_groups.add(tpl_group)
+                    target_groups.update(tpl_groups)
 
         # 去重推送
         for group in target_groups:
