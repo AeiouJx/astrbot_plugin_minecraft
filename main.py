@@ -250,11 +250,12 @@ class MinecraftPlugin(Star):
     async def on_llm_request(self, event: AstrMessageEvent, req) -> None:
         if event.get_platform_id() != "minecraft":
             return
-        if not self.config.get("llm_auto_reply", True):
+        llm_config = self.config.get("llm", {})
+        weight = llm_config.get("weight", 10)
+        if weight <= 0:
             event.stop_propagation()
             return
-        # 注入 MC 聊天系统提示词，限制回复长度
-        mc_prompt = self.config.get("mc_llm_system_prompt", "")
+        mc_prompt = llm_config.get("template", "")
         if mc_prompt:
             req.system_prompt = mc_prompt
 
