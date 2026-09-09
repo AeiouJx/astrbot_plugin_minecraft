@@ -154,7 +154,6 @@ class MinecraftPlugin(Star):
     # ==================== LLM 自动回复控制 ====================
 
     @filter.on_llm_request()
-    @filter.priority(100)
     async def on_llm_request(self, event: AstrMessageEvent) -> None:
         if getattr(event, "no_auto_reply", False):
             event.stop_propagation()
