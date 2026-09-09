@@ -145,42 +145,38 @@ class MinecraftPlugin(Star):
         else:
             text = f"{sender_id}: {msg}\n[{event.server_id}] [chat] [{ts}]"
 
-        # 收集所有需要推送的 (group, matched_player) 对
-        targets: list[tuple[str, str]] = []
+        # 收集所有需要推送的 (group) 对
+        target_groups: set[str] = set()
 
         # 1. 旧版 focus_players + focus_group
         focus_group = self.config.get("focus_group", "")
         focus_players = self.config.get("focus_players", [])
         if focus_group and focus_players:
-            matched = self._match_focus_player(etype, sender_id, msg, focus_players)
-            if matched:
-                targets.append((focus_group, matched))
+            if self._match_focus_player(etype, sender_id, msg, focus_players):
+                target_groups.add(focus_group)
 
-        # 2. 新版 focus_templates
-        import json as _json
-        templates_raw = self.config.get("focus_templates", "[]")
-        try:
-            templates = _json.loads(templates_raw) if isinstance(templates_raw, str) else templates_raw
-        except (ValueError, TypeError):
-            templates = []
-        for tpl in templates:
-            tpl_group = tpl.get("group", "")
-            tpl_players = tpl.get("players", [])
-            tpl_events = tpl.get("events", [])
-            if not tpl_group or not tpl_players:
-                continue
-            if tpl_events and etype not in tpl_events:
-                continue
-            matched = self._match_focus_player(etype, sender_id, msg, tpl_players)
-            if matched:
-                targets.append((tpl_group, matched))
+        # 2. 新版 focus_templates (template_list 格式)
+        templates = self.config.get("focus_templates", [])
+        if isinstance(templates, list):
+            for tpl in templates:
+                tpl_group = tpl.get("group", "")
+                tpl_players = tpl.get("players", [])
+                if not tpl_group or not tpl_players:
+                    continue
+                # 检查事件类型开关
+                if etype == protocol.EVENT_CHAT and not tpl.get("push_chat", True):
+                    continue
+                if etype == protocol.EVENT_WHISPER and not tpl.get("push_whisper", False):
+                    continue
+                if etype in (protocol.EVENT_PLAYER_JOIN, protocol.EVENT_PLAYER_LEAVE) and not tpl.get("push_join_leave", True):
+                    continue
+                if etype == protocol.EVENT_DEATH and not tpl.get("push_death", True):
+                    continue
+                if self._match_focus_player(etype, sender_id, msg, tpl_players):
+                    target_groups.add(tpl_group)
 
         # 去重推送
-        sent_groups: set[str] = set()
-        for group, _ in targets:
-            if group in sent_groups:
-                continue
-            sent_groups.add(group)
+        for group in target_groups:
             session = f"{self._qq_platform_id}:GroupMessage:{group}"
             chain = MessageChain()
             chain.chain.append(Plain(text=text))
