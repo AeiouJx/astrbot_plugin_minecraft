@@ -97,6 +97,8 @@ class MinecraftPlatformAdapter(Platform):
     async def run(self) -> None:
         from astrbot import logger
         logger.info("[MC Bridge] run() called, starting WS server...")
+        if self._ws_server:
+            await self._ws_server.stop()
         self._ws_server = MinecraftWSServer(self)
         await self._ws_server.start()
         logger.info("[MC Bridge] WS server started")

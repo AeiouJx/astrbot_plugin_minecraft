@@ -18,6 +18,7 @@ class MinecraftWSServer:
         self.config = adapter.config
         self._runner: Optional[web.AppRunner] = None
         self._pending = protocol.PendingFuture()
+        self._monitor_task: Optional[asyncio.Task] = None
 
     async def start(self) -> None:
         app = web.Application()
@@ -31,8 +32,28 @@ class MinecraftWSServer:
             f"MC Bridge WS 已监听: "
             f"ws://{self.config['host']}:{self.config['port']}{path}"
         )
-        asyncio.create_task(self._monitor())
+        self._monitor_task = asyncio.create_task(self._monitor())
         await asyncio.Event().wait()
+
+    async def stop(self) -> None:
+        """关闭 WS 服务端，释放端口。"""
+        if self._monitor_task:
+            self._monitor_task.cancel()
+            try:
+                await self._monitor_task
+            except asyncio.CancelledError:
+                pass
+        if self._runner:
+            await self._runner.cleanup()
+            self._runner = None
+        for sid, conn in list(self.adapter._connections.items()):
+            conn.closed = True
+            try:
+                await conn.ws.close()
+            except Exception:
+                pass
+        self.adapter._connections.clear()
+        logger.info("MC Bridge WS 已关闭")
 
     async def _handle(self, request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse(heartbeat=30, max_msg_size=1024 * 1024)

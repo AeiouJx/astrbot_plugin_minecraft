@@ -118,6 +118,12 @@
         "hint": "选择用于 MC 聊天自动回复的模型提供商。留空使用 AstrBot 默认模型。",
         "default": ""
     },
+    "mc_llm_system_prompt": {
+        "description": "MC 聊天系统提示词",
+        "type": "string",
+        "hint": "LLM 回复 Minecraft 聊天时的系统提示词。留空使用默认提示词。建议要求回复简短（Minecraft 聊天框限64字符）。",
+        "default": "你是一个 Minecraft 游戏中的玩家。回复要简短（不超过50字符），口语化，像玩家聊天一样。不要用markdown格式。不要用emoji。"
+    },
     "focus_templates_list": {
         "description": "🎯 重点关注推送至群聊模板库",
         "hint": "添加重点关注规则：指定 QQ 群和要关注的 Minecraft 玩家，命中玩家使用模板配置，推送事件到对应群。群项留空时回退到全局配置",

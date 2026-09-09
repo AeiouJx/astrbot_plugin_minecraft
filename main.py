@@ -192,11 +192,16 @@ class MinecraftPlugin(Star):
     # ==================== LLM 自动回复控制 ====================
 
     @filter.on_llm_request()
-    async def on_llm_request(self, event: AstrMessageEvent) -> None:
+    async def on_llm_request(self, event: AstrMessageEvent, req) -> None:
         if event.get_platform_id() != "minecraft":
             return
         if not self.config.get("llm_auto_reply", True):
             event.stop_propagation()
+            return
+        # 注入 MC 聊天系统提示词，限制回复长度
+        mc_prompt = self.config.get("mc_llm_system_prompt", "")
+        if mc_prompt:
+            req.system_prompt = mc_prompt
 
     # ==================== 命令 ====================
 
