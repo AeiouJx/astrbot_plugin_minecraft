@@ -26,7 +26,10 @@ class MinecraftWSServer:
         app.router.add_get(path, self._handle)
         self._runner = web.AppRunner(app)
         await self._runner.setup()
-        site = web.TCPSite(self._runner, self.config["host"], self.config["port"])
+        site = web.TCPSite(
+            self._runner, self.config["host"], self.config["port"],
+            reuse_address=True, reuse_port=True,
+        )
         await site.start()
         logger.info(
             f"MC Bridge WS 已监听: "
