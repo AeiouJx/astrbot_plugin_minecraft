@@ -36,6 +36,8 @@ from . import protocol
         "port": 8765,
         "path": "/ws",
         "token": "change-me",
+        "outbound_max_length": 200,
+        "llm_auto_reply": True,
     },
     config_metadata={
         "host": {
@@ -62,6 +64,19 @@ from . import protocol
             "secret": True,
             "hint": "Minecraft Mod 连接 AstrBot 时使用，两端必须完全一致。",
             "default": "change-me",
+        },
+        "outbound_max_length": {
+            "description": "MC 单条消息最大长度",
+            "type": "int",
+            "hint": "发送到 Minecraft 的单条消息最大字符数。2b2t 限制 256，超长会被踢。建议 200。",
+            "slider": {"min": 50, "max": 500, "step": 10},
+            "default": 200,
+        },
+        "llm_auto_reply": {
+            "description": "LLM 自动回复",
+            "type": "bool",
+            "hint": "开启后，玩家在 MC 聊天中 @Bot 或私聊 Bot 时，LLM 会自动生成回复。关闭则 Bot 不回复 MC 消息。",
+            "default": True,
         },
     },
 )
@@ -99,6 +114,18 @@ class MinecraftPlatformAdapter(Platform):
         text = self._extract_text(message_chain)
         if not text:
             return
+
+        # sanitize：去 §、控制字符 → 空格，压空白，截断
+        import re
+        text = text.replace("§", "")
+        text = re.sub(r"[\r\n\t\x00-\x1f\x7f]", " ", text)
+        text = re.sub(r" {2,}", " ", text).strip()
+        max_len = self.config.get("outbound_max_length", 200)
+        if len(text) > max_len:
+            text = text[:max_len - 3] + "..."
+        if not text:
+            return
+
         server_id = session.session_id.split(":")[0] if session.session_id else ""
         conn = self._connections.get(server_id)
         if conn:

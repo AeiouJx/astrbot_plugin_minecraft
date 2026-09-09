@@ -91,7 +91,7 @@ class MinecraftPlugin(Star):
                 logger.debug(f"[MC→QQ] AI 拦截: {reason} | {msg}")
                 return
 
-        text = f"[{time.strftime('%H:%M:%S')}] [{event.server_id}]\n{msg}"
+        text = f"[{event.server_id}] {msg}\n[{time.strftime('%H:%M:%S')}]"
         session = f"{self._qq_platform_id}:GroupMessage:{qq_group}"
         chain = MessageChain()
         chain.chain.append(Plain(text=text))

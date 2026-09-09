@@ -65,7 +65,7 @@
         "hint": "开启后会读取 astrbot_plugin_group_guardian 的 lexicon.db 词库（66,000+ 条关键词），扩大过滤覆盖范围。需先安装该插件。",
         "default": false
     },
-    "enable_ai_moderation": {
+    "llm_moderation_enable": {
         "description": "AI 内容审核 (L3)",
         "type": "bool",
         "hint": "开启后，推送到 QQ 的消息会先发送给 LLM 判断是否安全，不安全的内容不会推送。会消耗少量 API 额度。",
@@ -90,13 +90,6 @@
         "slider": {"min": 100, "max": 5000, "step": 100},
         "default": 1000
     },
-    "outbound_max_message_length": {
-        "description": "广播回游戏的最大长度",
-        "type": "int",
-        "hint": "AstrBot 回复广播到 Minecraft 前允许的最大长度；过长回复会被截断。",
-        "slider": {"min": 100, "max": 5000, "step": 100},
-        "default": 2000
-    },
     "chat_rate_limit": {
         "description": "发言频率限制",
         "type": "int",
@@ -110,6 +103,12 @@
         "hint": "频率限制的时间窗口大小（秒）。",
         "slider": {"min": 10, "max": 300, "step": 10},
         "default": 60
+    },
+    "llm_auto_reply": {
+        "description": "LLM 自动回复",
+        "type": "bool",
+        "hint": "开启后，玩家在 MC 聊天中 @Bot 或私聊 Bot 时，LLM 会自动生成回复。关闭则 Bot 不回复 MC 消息。",
+        "default": true
     },
     "allowed_groups": {
         "description": "允许使用的群号列表",
