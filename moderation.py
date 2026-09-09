@@ -48,20 +48,21 @@ class ContentModerator:
 
     def check(self, message: str) -> tuple[bool, str]:
         """检查消息是否安全。返回 (是否放行, 拦截原因)。"""
-        if not self.config.get("qq_content_filter", True):
+        mod = self.config.get("moderation", {})
+        if not mod.get("enable", True):
             return True, ""
 
         msg_lower = message.lower()
 
         # L1: 内置敏感词 + 自定义违禁词
-        blocked = self.config.get("qq_blocked_words", [])
+        blocked = mod.get("blocked_words", [])
         all_words = _BUILTIN_BLOCKED + blocked
         for word in all_words:
             if word.lower() in msg_lower:
                 return False, f"命中违禁词: {word}"
 
         # L2: GroupGuardian 词库
-        if self.config.get("use_guardian_lexicon", False):
+        if mod.get("use_guardian_lexicon", False):
             reason = self._check_guardian_lexicon(message)
             if reason:
                 return False, reason
@@ -70,14 +71,15 @@ class ContentModerator:
 
     async def ai_check(self, message: str) -> tuple[bool, str]:
         """L3: AI 审核。返回 (是否放行, 拦截原因)。"""
-        mod_config = self.config.get("llm_moderation", {})
-        if not mod_config.get("enable", False):
+        mod = self.config.get("moderation", {})
+        llm_mod = mod.get("llm", {})
+        if not llm_mod.get("enable", False):
             return True, ""
 
-        prompt = mod_config.get("prompt", "") or _DEFAULT_AI_PROMPT
+        prompt = llm_mod.get("prompt", "") or _DEFAULT_AI_PROMPT
         full_prompt = f"{prompt}\n\n{message}"
 
-        provider_id = mod_config.get("provider", "") or None
+        provider_id = llm_mod.get("provider", "") or None
 
         try:
             from astrbot.api.provider import ProviderRequest

@@ -95,46 +95,52 @@
         "hint": "扫描发现目标方块/实体事件推送到 QQ 群。",
         "default": true
     },
-    "qq_content_filter": {
-        "description": "违禁词过滤 (L1)",
-        "type": "bool",
-        "hint": "开启后，推送到 QQ 的消息会检查自定义违禁词列表，命中则不推送。",
-        "default": true
-    },
-    "qq_blocked_words": {
-        "description": "自定义违禁词列表",
-        "type": "list",
-        "hint": "包含这些词的消息不会推送到 QQ 群（不区分大小写）。可配合下方的 GroupGuardian 词库使用。",
-        "default": []
-    },
-    "use_guardian_lexicon": {
-        "description": "共享 GroupGuardian 词库 (L2)",
-        "type": "bool",
-        "hint": "开启后会读取 astrbot_plugin_group_guardian 的 lexicon.db 词库（66,000+ 条关键词），扩大过滤覆盖范围。需先安装该插件。",
-        "default": false
-    },
-    "llm_moderation": {
-        "description": "AI 内容审核 (L3)",
+    "moderation": {
+        "description": "内容审核",
         "type": "object",
         "items": {
             "enable": {
-                "description": "启用 AI 审核",
+                "description": "违禁词过滤 (L1)",
                 "type": "bool",
-                "hint": "开启后，推送到 QQ 的消息会先发送给 LLM 判断是否安全，不安全的内容不会推送。会消耗少量 API 额度。",
+                "hint": "开启后，推送到 QQ 的消息会检查自定义违禁词列表，命中则不推送。",
+                "default": true
+            },
+            "blocked_words": {
+                "description": "自定义违禁词列表",
+                "type": "list",
+                "hint": "包含这些词的消息不会推送到 QQ 群（不区分大小写）。可配合 GroupGuardian 词库使用。",
+                "default": []
+            },
+            "use_guardian_lexicon": {
+                "description": "共享 GroupGuardian 词库 (L2)",
+                "type": "bool",
+                "hint": "开启后会读取 astrbot_plugin_group_guardian 的 lexicon.db 词库（66,000+ 条关键词），扩大过滤覆盖范围。需先安装该插件。",
                 "default": false
             },
-            "provider": {
-                "description": "AI 审核模型",
-                "type": "string",
-                "_special": "select_provider",
-                "hint": "选择用于内容审核的模型提供商。留空则使用 AstrBot 默认模型。",
-                "default": ""
-            },
-            "prompt": {
-                "description": "AI 审核提示词",
-                "type": "string",
-                "hint": "自定义 AI 审核的判断标准。留空使用内置默认提示词。",
-                "default": ""
+            "llm": {
+                "description": "AI 内容审核 (L3)",
+                "type": "object",
+                "items": {
+                    "enable": {
+                        "description": "启用 AI 审核",
+                        "type": "bool",
+                        "hint": "开启后，推送到 QQ 的消息会先发送给 LLM 判断是否安全，不安全的内容不会推送。会消耗少量 API 额度。",
+                        "default": false
+                    },
+                    "provider": {
+                        "description": "AI 审核模型",
+                        "type": "string",
+                        "_special": "select_provider",
+                        "hint": "选择用于内容审核的模型提供商。留空则使用 AstrBot 默认模型。",
+                        "default": ""
+                    },
+                    "prompt": {
+                        "description": "AI 审核提示词",
+                        "type": "string",
+                        "hint": "自定义 AI 审核的判断标准。留空使用内置默认提示词。",
+                        "default": ""
+                    }
+                }
             }
         }
     },

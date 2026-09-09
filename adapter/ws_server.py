@@ -115,6 +115,7 @@ class MinecraftWSServer:
                         if msg_type == protocol.MSG_EVENT:
                             event_type = data.get("event_type", "")
                             payload = data.get("data", {})
+                            payload["_timestamp"] = data.get("timestamp")
                             self.adapter.on_ws_event(
                                 conn.server_id, event_type, payload
                             )

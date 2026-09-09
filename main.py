@@ -130,10 +130,16 @@ class MinecraftPlugin(Star):
             protocol.EVENT_SYSTEM: "system",
             protocol.EVENT_BOT_STATUS: "status",
         }.get(etype, etype)
-        if sender_id != "system":
-            text = f"{event.message_obj.sender.nickname}: {msg}\n[{event.server_id}] [{etype_label}] [{time.strftime('%H:%M:%S')}]"
+        # 使用 MC 服务器事件时间戳
+        mc_ts = (event.message_obj.raw_message or {}).get("_timestamp")
+        if mc_ts:
+            ts_str = time.strftime('%H:%M:%S', time.localtime(mc_ts))
         else:
-            text = f"{msg}\n[{event.server_id}] [{etype_label}] [{time.strftime('%H:%M:%S')}]"
+            ts_str = time.strftime('%H:%M:%S')
+        if sender_id != "system":
+            text = f"{event.message_obj.sender.nickname}: {msg}\n[{event.server_id}] [{etype_label}] [{ts_str}]"
+        else:
+            text = f"{msg}\n[{event.server_id}] [{etype_label}] [{ts_str}]"
 
         # 安全事件加 ⚠ 前缀
         if etype in (protocol.EVENT_ATTACK, protocol.EVENT_TOTEM_POP,
@@ -171,7 +177,8 @@ class MinecraftPlugin(Star):
             return
 
         msg = event.message_str
-        ts = time.strftime('%H:%M:%S')
+        mc_ts = (event.message_obj.raw_message or {}).get("_timestamp")
+        ts = time.strftime('%H:%M:%S', time.localtime(mc_ts)) if mc_ts else time.strftime('%H:%M:%S')
 
         # 格式化消息
         if etype == protocol.EVENT_PLAYER_JOIN:
