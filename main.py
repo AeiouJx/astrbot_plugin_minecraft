@@ -123,13 +123,19 @@ class MinecraftPlugin(Star):
         etype = getattr(event, "platform_event_type", "")
         sender_id = event.message_obj.sender.user_id
 
-        # 仅处理关注玩家的聊天、加入、退出事件
+        # 仅处理关注玩家的聊天、加入、退出、死亡事件
         if etype not in (protocol.EVENT_CHAT, protocol.EVENT_WHISPER,
-                         protocol.EVENT_PLAYER_JOIN, protocol.EVENT_PLAYER_LEAVE):
+                         protocol.EVENT_PLAYER_JOIN, protocol.EVENT_PLAYER_LEAVE,
+                         protocol.EVENT_DEATH):
             return
 
-        if sender_id not in focus_players:
-            return
+        # 聊天/加入/退出：直接匹配 sender_id；死亡：匹配消息中的玩家名
+        if etype == protocol.EVENT_DEATH:
+            if not any(name in event.message_str for name in focus_players):
+                return
+        else:
+            if sender_id not in focus_players:
+                return
 
         msg = event.message_str
         ts = time.strftime('%H:%M:%S')
@@ -138,6 +144,8 @@ class MinecraftPlugin(Star):
         if etype in (protocol.EVENT_PLAYER_JOIN, protocol.EVENT_PLAYER_LEAVE):
             action = "加入了游戏" if etype == protocol.EVENT_PLAYER_JOIN else "离开了游戏"
             text = f"玩家 {sender_id} {action} [{event.server_id}] [{ts}]"
+        elif etype == protocol.EVENT_DEATH:
+            text = f"{msg} [{event.server_id}] [{ts}]"
         elif etype == protocol.EVENT_WHISPER:
             text = f"{sender_id} 私聊: {msg} [{event.server_id}] [{ts}]"
         else:
