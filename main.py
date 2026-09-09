@@ -89,10 +89,20 @@ class MinecraftPlugin(Star):
 
         # 格式化消息：sender: message\n[server] [HH:MM:SS]
         sender_id = event.message_obj.sender.user_id
+        etype_label = {
+            protocol.EVENT_CHAT: "chat",
+            protocol.EVENT_WHISPER: "whisper",
+            protocol.EVENT_PLAYER_JOIN: "join",
+            protocol.EVENT_PLAYER_LEAVE: "leave",
+            protocol.EVENT_DEATH: "death",
+            protocol.EVENT_ACHIEVEMENT: "achievement",
+            protocol.EVENT_SYSTEM: "system",
+            protocol.EVENT_BOT_STATUS: "status",
+        }.get(etype, etype)
         if sender_id != "system":
-            text = f"{event.message_obj.sender.nickname}: {msg}\n[{event.server_id}] [{time.strftime('%H:%M:%S')}]"
+            text = f"[{etype_label}] {event.message_obj.sender.nickname}: {msg}\n[{event.server_id}] [{time.strftime('%H:%M:%S')}]"
         else:
-            text = f"{msg}\n[{event.server_id}] [{time.strftime('%H:%M:%S')}]"
+            text = f"[{etype_label}] {msg}\n[{event.server_id}] [{time.strftime('%H:%M:%S')}]"
 
         session = f"{self._qq_platform_id}:GroupMessage:{qq_group}"
         chain = MessageChain()
@@ -142,15 +152,15 @@ class MinecraftPlugin(Star):
 
         # 格式化消息
         if etype == protocol.EVENT_PLAYER_JOIN:
-            text = f"{sender_id} joined the game\n[{event.server_id}] [{ts}]"
+            text = f"[join] {sender_id} joined the game\n[{event.server_id}] [{ts}]"
         elif etype == protocol.EVENT_PLAYER_LEAVE:
-            text = f"{sender_id} left the game\n[{event.server_id}] [{ts}]"
+            text = f"[leave] {sender_id} left the game\n[{event.server_id}] [{ts}]"
         elif etype == protocol.EVENT_DEATH:
-            text = f"{msg}\n[{event.server_id}] [{ts}]"
+            text = f"[death] {msg}\n[{event.server_id}] [{ts}]"
         elif etype == protocol.EVENT_WHISPER:
-            text = f"{sender_id} 私聊: {msg}\n[{event.server_id}] [{ts}]"
+            text = f"[whisper] {sender_id}: {msg}\n[{event.server_id}] [{ts}]"
         else:
-            text = f"{sender_id}: {msg}\n[{event.server_id}] [{ts}]"
+            text = f"[chat] {sender_id}: {msg}\n[{event.server_id}] [{ts}]"
 
         session = f"{self._qq_platform_id}:GroupMessage:{focus_group}"
         chain = MessageChain()
@@ -164,7 +174,9 @@ class MinecraftPlugin(Star):
 
     @filter.on_llm_request()
     async def on_llm_request(self, event: AstrMessageEvent) -> None:
-        if getattr(event, "no_auto_reply", False):
+        if event.get_platform_id() != "minecraft":
+            return
+        if not self.config.get("llm_auto_reply", True):
             event.stop_propagation()
 
     # ==================== 命令 ====================

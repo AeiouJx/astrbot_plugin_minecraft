@@ -36,8 +36,7 @@ from . import protocol
         "port": 8765,
         "path": "/ws",
         "token": "change-me",
-        "outbound_max_length": 200,
-        "llm_auto_reply": True,
+        "outbound_max_length": 64,
     },
     config_metadata={
         "host": {
@@ -68,15 +67,9 @@ from . import protocol
         "outbound_max_length": {
             "description": "MC 单条消息最大长度",
             "type": "int",
-            "hint": "发送到 Minecraft 的单条消息最大字符数。2b2t 限制 256，超长会被踢。建议 200。",
-            "slider": {"min": 50, "max": 500, "step": 10},
-            "default": 200,
-        },
-        "llm_auto_reply": {
-            "description": "LLM 自动回复",
-            "type": "bool",
-            "hint": "开启后，玩家在 MC 聊天中 @Bot 或私聊 Bot 时，LLM 会自动生成回复。关闭则 Bot 不回复 MC 消息。",
-            "default": True,
+            "hint": "发送到 Minecraft 的单条消息最大字符数。2b2t 限制 256，超长会被踢。建议 64。",
+            "slider": {"min": 32, "max": 256, "step": 16},
+            "default": 64,
         },
     },
 )
@@ -178,8 +171,6 @@ class MinecraftPlatformAdapter(Platform):
             server_id=server_id,
             event_type=event_type,
         )
-        if not self.config.get("llm_auto_reply", True):
-            event.no_auto_reply = True
         self.commit_event(event)
 
     def _handle_system_event(
