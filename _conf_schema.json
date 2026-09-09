@@ -54,9 +54,15 @@
         "default": true
     },
     "push_security": {
-        "description": "推送安全事件",
+        "description": "推送攻击事件",
         "type": "bool",
-        "hint": "玩家攻击Bot、连接被拒等安全事件推送到 QQ 群。",
+        "hint": "玩家攻击Bot事件推送到 QQ 群。",
+        "default": true
+    },
+    "push_connection_denied": {
+        "description": "推送连接拒绝事件",
+        "type": "bool",
+        "hint": "黑名单/白名单玩家连接被拒事件推送到 QQ 群。",
         "default": true
     },
     "push_totem": {

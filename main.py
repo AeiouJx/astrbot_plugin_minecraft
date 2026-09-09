@@ -68,8 +68,10 @@ class MinecraftPlugin(Star):
             push = self.config.get("push_achievement", False)
         elif etype == protocol.EVENT_PLAYER_DEATH:
             push = self.config.get("push_player_death", True)
-        elif etype in (protocol.EVENT_ATTACK, protocol.EVENT_CONNECTION_DENIED):
+        elif etype == protocol.EVENT_ATTACK:
             push = self.config.get("push_security", True)
+        elif etype == protocol.EVENT_CONNECTION_DENIED:
+            push = self.config.get("push_connection_denied", True)
         elif etype in (protocol.EVENT_TOTEM_POP, protocol.EVENT_TOTEM_EMPTY):
             push = self.config.get("push_totem", True)
         elif etype in (protocol.EVENT_VISUAL_ENTER, protocol.EVENT_VISUAL_LEAVE, protocol.EVENT_VISUAL_LOGOUT):
@@ -134,8 +136,10 @@ class MinecraftPlugin(Star):
         # 安全事件加 ⚠ 前缀
         if etype in (protocol.EVENT_ATTACK, protocol.EVENT_TOTEM_POP,
                      protocol.EVENT_TOTEM_EMPTY, protocol.EVENT_HEALTH_WARNING,
-                     protocol.EVENT_HEALTH_AUTODISCONNECT, protocol.EVENT_CONNECTION_DENIED):
+                     protocol.EVENT_HEALTH_AUTODISCONNECT):
             text = f"⚠ {text}"
+        elif etype == protocol.EVENT_CONNECTION_DENIED:
+            text = f"🚫 {text}"
 
         session = f"{self._qq_platform_id}:GroupMessage:{qq_group}"
         chain = MessageChain()
