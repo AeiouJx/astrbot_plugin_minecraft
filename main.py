@@ -17,6 +17,8 @@ from astrbot.api.star import Context, Star
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.message_components import Plain
 
+from .adapter import protocol
+
 
 class MinecraftPlugin(Star):
     """Minecraft 插件 - WebSocket 双向消息桥 + AI 控制"""
@@ -46,8 +48,6 @@ class MinecraftPlugin(Star):
         qq_group = self.config.get("minecraft_event_group", "")
         if not qq_group:
             return
-
-        from .adapter import protocol
 
         etype = getattr(event, "platform_event_type", "")
         msg = event.message_str
@@ -158,8 +158,6 @@ class MinecraftPlugin(Star):
         """重点关注玩家事件推送到指定群。"""
         if event.get_platform_id() != "minecraft":
             return
-
-        from .adapter import protocol
 
         etype = getattr(event, "platform_event_type", "")
         sender_id = event.message_obj.sender.user_id
