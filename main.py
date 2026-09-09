@@ -87,12 +87,12 @@ class MinecraftPlugin(Star):
                 logger.debug(f"[MC→QQ] AI 拦截: {reason} | {msg}")
                 return
 
-        # 格式化消息：sender: message [sender_id][server] [HH:MM:SS]
+        # 格式化消息：sender: message\n[server] [HH:MM:SS]
         sender_id = event.message_obj.sender.user_id
         if sender_id != "system":
-            text = f"{event.message_obj.sender.nickname}: {msg} [{sender_id}][{event.server_id}] [{time.strftime('%H:%M:%S')}]"
+            text = f"{event.message_obj.sender.nickname}: {msg}\n[{event.server_id}] [{time.strftime('%H:%M:%S')}]"
         else:
-            text = f"{msg} [{event.server_id}] [{time.strftime('%H:%M:%S')}]"
+            text = f"{msg}\n[{event.server_id}] [{time.strftime('%H:%M:%S')}]"
 
         session = f"{self._qq_platform_id}:GroupMessage:{qq_group}"
         chain = MessageChain()
@@ -143,13 +143,13 @@ class MinecraftPlugin(Star):
         # 格式化消息
         if etype in (protocol.EVENT_PLAYER_JOIN, protocol.EVENT_PLAYER_LEAVE):
             action = "加入了游戏" if etype == protocol.EVENT_PLAYER_JOIN else "离开了游戏"
-            text = f"玩家 {sender_id} {action} [{event.server_id}] [{ts}]"
+            text = f"玩家 {sender_id} {action}\n[{event.server_id}] [{ts}]"
         elif etype == protocol.EVENT_DEATH:
-            text = f"{msg} [{event.server_id}] [{ts}]"
+            text = f"{msg}\n[{event.server_id}] [{ts}]"
         elif etype == protocol.EVENT_WHISPER:
-            text = f"{sender_id} 私聊: {msg} [{event.server_id}] [{ts}]"
+            text = f"{sender_id} 私聊: {msg}\n[{event.server_id}] [{ts}]"
         else:
-            text = f"{sender_id}: {msg} [{event.server_id}] [{ts}]"
+            text = f"{sender_id}: {msg}\n[{event.server_id}] [{ts}]"
 
         session = f"{self._qq_platform_id}:GroupMessage:{focus_group}"
         chain = MessageChain()
