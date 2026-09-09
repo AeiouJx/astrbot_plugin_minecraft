@@ -52,8 +52,6 @@ class MinecraftPlugin(Star):
         etype = getattr(event, "platform_event_type", "")
         msg = event.message_str
 
-        logger.debug(f"[MC→QQ] etype={etype} msg={msg[:50]}")
-
         # 根据事件类型和对应开关决定是否推送
         push = False
         if etype == protocol.EVENT_CHAT:

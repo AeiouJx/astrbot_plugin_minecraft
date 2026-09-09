@@ -116,10 +116,6 @@ class MinecraftWSServer:
                             event_type = data.get("event_type", "")
                             payload = data.get("data", {})
                             payload["_timestamp"] = data.get("timestamp")
-                            logger.debug(
-                                f"[WS] event={event_type} ts={data.get('timestamp')} "
-                                f"payload_keys={list(payload.keys())}"
-                            )
                             self.adapter.on_ws_event(
                                 conn.server_id, event_type, payload
                             )
